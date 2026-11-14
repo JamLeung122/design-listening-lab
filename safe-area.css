@@ -8,3 +8,13 @@ body{height:100dvh;min-height:0;display:flex;flex-direction:column;overflow:hidd
 .dialog{max-height:calc(100dvh - 48px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow-y:auto;-webkit-overflow-scrolling:touch}
 #diagLog{white-space:pre-wrap;overflow:auto;max-height:180px;font-size:12px;background:#0e1725;border:1px solid #394a63;border-radius:8px;padding:10px;line-height:1.5}
 @media(max-width:650px){.layout{grid-template-rows:45% 55%}}
+
+/* Reading mode: maximize the transcript when sharing iPad screen with Noema. */
+.layout.reading-mode{grid-template-columns:minmax(0,1fr)!important;grid-template-rows:minmax(0,1fr)!important}
+.layout.reading-mode .left{min-height:0;border-right:0;border-bottom:0}
+.layout.reading-mode #handwritingPane{display:none}
+#readingAudioDock{display:none;flex-shrink:0}
+.layout.reading-mode #readingAudioDock{display:block}
+.layout.reading-mode #readingAudioDock .player{border-top:1px solid #344054}
+#viewToggle[aria-pressed="true"]{background:#5579e8;border-color:#5579e8}
+@media(max-width:650px){.layout.reading-mode{grid-template-rows:minmax(0,1fr)!important}}
