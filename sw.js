@@ -1,6 +1,6 @@
 // Design Listening Lab: offline-first app shell (same-origin only).
 // Model weight downloads and external CDN modules are deliberately not cached here.
-const CACHE='design-listening-lab-v3.5';
+const CACHE='design-listening-lab-v3.6';
 const CORE=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
 const OFFLINE_PAGE='./index.html';
 self.addEventListener('install',event=>{
