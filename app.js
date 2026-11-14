@@ -79,19 +79,59 @@ $('selectionBtn').onclick=()=>{
  if(text)select(text);
  else $('aiOutput').textContent='请在原文中长按并拖动选区，或切换「选择：整句」后点一句话。';
 };$('explainBtn').onclick=()=>explain();$('savePhrase').onclick=()=>{if(!selection)return;let a=JSON.parse(localStorage.getItem('dll_phrases')||'[]');a.push({text:selection,created:new Date().toISOString()});localStorage.setItem('dll_phrases',JSON.stringify(a));$('studyInfo').textContent='已收藏：'+selection;scheduleSave()};
-$('copyNoema').onclick=async()=>{const picked=selectedTranscriptText()||selection;if(!picked){$('aiOutput').textContent='请先显示原文，点击单词或选中词组、句子后再复制。';return;}const prompt=[
-'你是我的中英双语英语学习助手，重点关注插画、数字艺术、视觉传达与汽车座舱 HMI。',
-'请基于下面这一段英文，简短说明：',
-'1. 中文自然释义和简洁英文改写；',
-'2. 最多三个重要单词或常用搭配；',
-'3. 必要时解释语法、语气及用法；',
-'4. 一个设计或艺术相关英语例句；',
-'5. 一个简短复习问题。',
-'不要编造纪录片出处。',
-'英文：',picked
-].join('\n');
-try{await navigator.clipboard.writeText(prompt);$('aiOutput').textContent='已复制到剪贴板：'+picked+'\n切换到 Noema，选择 Qwen3 1.7B，粘贴发送；返回本页继续听写。'}catch(e){$('aiOutput').textContent='自动复制不可用。请手动选择并复制：\n'+prompt;}
+// Short prompt for fast learning; detailed prompt remains available.
+function currentEnglish(){return selectedTranscriptText()||selection}
+function makeNoemaPrompt(text,detailed=false){
+ if(!detailed)return [
+  '请作为中英双语艺术与设计英语老师，解释以下英文。',
+  '简洁回答：①中文含义 ②简明英文改写 ③关键词或搭配 ④一个设计或艺术相关英语例句。',
+  '如果有歧义，说明常见用法。不编造来源。',
+  '英文：'+text
+ ].join('\n');
+ return [
+  '你是我的中英双语英语学习助手，重点关注插画、数字艺术、视觉传达与汽车座舱 HMI。',
+  '请基于下面这一段英文，简短说明：',
+  '1. 中文自然释义和简洁英文改写；',
+  '2. 最多三个重要单词或常用搭配；',
+  '3. 必要时解释语法、语气及用法；',
+  '4. 一个设计或艺术相关英语例句；',
+  '5. 一个简短复习问题。',
+  '不要编造纪录片出处。',
+  '英文：'+text
+ ].join('\n');
+}
+function handoffText(){
+ const text=currentEnglish();
+ if(!text){$('aiOutput').textContent='请先显示原文，并点击单词、整句或长按拖选短语。';return null}
+ return text;
+}
+async function copyForNoema(detailed){
+ const text=handoffText();if(!text)return;
+ const prompt=makeNoemaPrompt(text,detailed);
+ try{
+  await navigator.clipboard.writeText(prompt);
+  $('aiOutput').textContent=(detailed?'详细':'精简')+'学习提示词已复制：'+text+'\n切换到 Noema 粘贴发送即可。';
+ }catch{
+  $('aiOutput').textContent='复制失败；请从下方手动复制：\n'+prompt;
+ }
+}
+$('copyQuick').onclick=()=>copyForNoema(false);
+$('copyNoema').onclick=()=>copyForNoema(true);
+$('shareNoema').onclick=async()=>{
+ const text=handoffText();if(!text)return;
+ const prompt=makeNoemaPrompt(text,false);
+ if(typeof navigator.share!=='function'){
+  $('aiOutput').textContent='此浏览器不提供系统分享菜单，请改用「快速解释 · 复制」。';
+  return;
+ }
+ try{
+  await navigator.share({title:'设计英语解释',text:prompt});
+  $('aiOutput').textContent='已打开系统分享菜单。如 Noema 未出现在可分享目标中，请使用复制粘贴。';
+ }catch(e){
+  if(e?.name!=='AbortError')$('aiOutput').textContent='系统分享不可用：'+(e?.message||String(e))+'。请改用复制。';
+ }
 };
+
 
 async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个设计或艺术相关的原创英语例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」不在内置基础词库。点击「复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
 function openModal(id){$(id).classList.add('open')}document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove('open'));$('importBtn').onclick=()=>openModal('importModal');$('aiBtn').onclick=()=>{openModal('aiModal');checkGPU()};$('subtitleFile').onchange=async e=>{$('sourceText').value=await e.target.files[0].text()};function normalize(t){return t.replace(/^WEBVTT.*$/gm,'').replace(/^\d+\s*$/gm,'').replace(/^\d\d:\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/^\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/<[^>]+>/g,'').split(/\n\s*\n/).map(s=>s.trim().replace(/\n/g,' ')).filter(Boolean)}$('doImport').onclick=()=>{let t=$('sourceText').value.trim();if(!t)return;paras=normalize(t);hidden=new Set(paras.map((_,i)=>i));localStorage.setItem('dll_paras',JSON.stringify(paras));render();scheduleSave();$('importModal').classList.remove('open')};
@@ -168,7 +208,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v3.8');
+   const cache=await caches.open('design-listening-lab-v3.9');
    const core=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
