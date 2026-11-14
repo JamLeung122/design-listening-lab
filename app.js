@@ -32,4 +32,20 @@ async function checkGPU(){let ok=!!navigator.gpu;$('gpuStatus').textContent=ok?'
 function aiReport(stage,message){$('aiStatus').textContent='【'+stage+'】 '+message;console.info('[ListeningLab AI]',stage,message)}
 async function loadWebLLM(){let urls=['https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.80/+esm','https://esm.run/@mlc-ai/web-llm@0.2.80'];let errors=[];for(let url of urls){try{aiReport('组件加载','尝试 '+new URL(url).hostname);let lib=await import(/* webpackIgnore: true */ url);if(typeof lib.CreateMLCEngine!=='function'||!lib.prebuiltAppConfig?.model_list?.length)throw Error('模块导出不完整');return lib}catch(e){errors.push(new URL(url).hostname+': '+(e?.message||String(e)))}}throw Error('两个组件地址均加载失败：'+errors.join('；'))}
 $('installAI').onclick=async()=>{if(aiLoading)return;aiLoading=true;$('installAI').disabled=true;try{if(!navigator.onLine)throw Error('首次安装需要联网');if(!navigator.gpu)throw Error('当前浏览器未提供 WebGPU');const webllm=await loadWebLLM();aiReport('模型选择','正在检查 WebLLM 内置模型列表');let models=webllm.prebuiltAppConfig.model_list;let preferred=models.find(m=>/Qwen2\.5-0\.5B-Instruct-q4f16_1-MLC/i.test(m.model_id))||models.find(m=>/0\.5B.*q4f16/i.test(m.model_id))||models.find(m=>/1B.*q4f16/i.test(m.model_id));if(!preferred)throw Error('预置模型列表中找不到兼容的轻量模型');modelName=preferred.model_id;aiReport('模型下载 / GPU 初始化','正在准备 '+modelName+'。下载进度由模型组件报告');engine=await webllm.CreateMLCEngine(modelName,{initProgressCallback:p=>{let percent=typeof p.progress==='number'?Math.round(p.progress*100)+'%':'进度未知';aiReport('模型下载 / GPU 初始化',percent+' · '+(p.text||'正在加载'))}});aiReport('完成','本地模型已加载：'+modelName+'。现在可点击测试。关闭并重开后需要重新初始化。');$('testAI').disabled=false}catch(e){aiReport('失败',(e?.message||String(e))+'。基础听写功能不受影响；请截图这段完整错误。')}finally{aiLoading=false;$('installAI').disabled=!navigator.gpu}};
-$('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加载模型';return}selection='visual language';$('aiModal').classList.remove('open');await explain()};function net(){$('network').textContent=navigator.onLine?'在线':'离线'}window.addEventListener('online',net);window.addEventListener('offline',net);net();if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(console.warn);
+$('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加载模型';return}selection='visual language';$('aiModal').classList.remove('open');await explain()};async function net(){
+ let ready=false;
+ try{
+  if('caches'in window){
+   const cache=await caches.open('design-listening-lab-v3.5');
+   const core=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
+   ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
+  }
+ }catch{}
+ $('network').textContent=(navigator.onLine?'在线':'离线')+' · '+(ready?'网页已缓存':'等待离线缓存');
+}
+window.addEventListener('online',net);
+window.addEventListener('offline',net);
+if('serviceWorker'in navigator){
+ navigator.serviceWorker.addEventListener('controllerchange',net);
+ navigator.serviceWorker.register('./sw.js').then(()=>setTimeout(net,600)).catch(e=>{console.warn(e);net()});
+}else net();
