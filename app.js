@@ -100,7 +100,6 @@ const audioParent=audioPlayer.parentElement, audioNext=audioPlayer.nextSibling;
 function setReadingMode(reading){
  if(reading===layout.classList.contains('reading-mode'))return;
  if(reading){
-  void save();
   $('readingAudioDock').append(audioPlayer);
  }else{
   audioParent.insertBefore(audioPlayer,audioNext);
