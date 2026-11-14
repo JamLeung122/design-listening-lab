@@ -4,8 +4,72 @@ const $=id=>document.getElementById(id);let paras=JSON.parse(localStorage.getIte
 'Experimentation is part of the creative process. Sketching several possibilities can reveal a direction that was not obvious at the beginning.'
 ];let hidden=new Set(paras.map((_,i)=>i)),selection='',engine=null,modelName='',aiLoading=false,strokes=[],current=null,pen='#1d2939',erase=false,ctx,canvas,db;
 const dictionary={illustrator:'插画师',ordinary:'普通的；日常的',visual:'视觉的',idea:'想法；概念',challenge:'挑战',relationship:'关系；关联',communication:'传达；沟通',complex:'复杂的',reduced:'简化；提炼',viewer:'观看者',connection:'联系；联想',experimentation:'实验性探索',creative:'创意的',process:'过程',sketching:'草图绘制',possibilities:'多种可能性',direction:'方向',obvious:'明显的'};
-function render(){let host=$('paragraphs');host.replaceChildren();paras.forEach((p,i)=>{let el=document.createElement('article');el.className='para';let head=document.createElement('div');head.className='meta';head.innerHTML=`<span>PARAGRAPH ${String(i+1).padStart(2,'0')}</span>`;let btn=document.createElement('button');btn.className='small';btn.textContent=hidden.has(i)?'显示原文':'隐藏原文';btn.onclick=()=>{hidden.has(i)?hidden.delete(i):hidden.add(i);render()};head.append(btn);el.append(head);let body=document.createElement('div');body.className='body';if(hidden.has(i)){body.className+=' hiddenText';body.textContent='原文已隐藏 · 先听写再揭晓'}else{p.split(/(\b[A-Za-z][A-Za-z'-]*\b)/g).forEach(token=>{if(/^[A-Za-z]/.test(token)){let span=document.createElement('span');span.className='word';span.textContent=token;span.onclick=()=>select(token);body.append(span)}else body.append(document.createTextNode(token))})}el.append(body);host.append(el)})}function select(s){selection=s.trim();$('selected').textContent='选中：'+selection;$('aiOutput').textContent='点击「解释」查看释义';}render();$('hideAll').onclick=()=>{hidden=new Set(paras.map((_,i)=>i));render()};$('showAll').onclick=()=>{hidden.clear();render()};$('selectionBtn').onclick=()=>{let s=window.getSelection()?.toString().trim();if(s)select(s);else alert('先在左侧选中英文词组或句子')};$('explainBtn').onclick=()=>explain();$('savePhrase').onclick=()=>{if(!selection)return;let a=JSON.parse(localStorage.getItem('dll_phrases')||'[]');a.push({text:selection,created:new Date().toISOString()});localStorage.setItem('dll_phrases',JSON.stringify(a));$('studyInfo').textContent='已收藏：'+selection;scheduleSave()};
-$('copyNoema').onclick=async()=>{const picked=window.getSelection()?.toString().trim()||selection;if(!picked){$('aiOutput').textContent='请先显示原文，点击单词或选中词组、句子后再复制。';return;}const prompt=[
+// Mode-driven selection: tap a word or a full sentence; long-press to select any phrase in Safari.
+let selectionMode='word';
+function selectedTranscriptText(){
+ const sel=window.getSelection();
+ if(!sel || sel.isCollapsed || !sel.rangeCount)return '';
+ const range=sel.getRangeAt(0),host=$('paragraphs');
+ if(!host.contains(range.commonAncestorContainer))return '';
+ return sel.toString().replace(/\s+/g,' ').trim();
+}
+function render(){
+ const host=$('paragraphs');host.replaceChildren();
+ paras.forEach((p,i)=>{
+  const el=document.createElement('article');el.className='para';
+  const head=document.createElement('div');head.className='meta';
+  const name=document.createElement('span');name.textContent='PARAGRAPH '+String(i+1).padStart(2,'0');
+  const btn=document.createElement('button');btn.className='small';btn.textContent=hidden.has(i)?'显示原文':'隐藏原文';
+  btn.onclick=()=>{hidden.has(i)?hidden.delete(i):hidden.add(i);render()};
+  head.append(name,btn);el.append(head);
+  const body=document.createElement('div');body.className='body';
+  if(hidden.has(i)){body.classList.add('hiddenText');body.textContent='原文已隐藏 · 先听写再揭晓'}
+  else {
+   // Preserve spaces and punctuation while creating sentence and word targets.
+   const sentences=p.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)||[p];
+   for(const sentence of sentences){
+    const sentenceSpan=document.createElement('span');sentenceSpan.className='sentence';
+    sentenceSpan.title='切换至整句模式后点击选取这句话';
+    sentenceSpan.addEventListener('click',()=>{
+     if(selectionMode==='sentence' && !selectedTranscriptText())select(sentence.trim());
+    });
+    sentence.split(/(\b[A-Za-z][A-Za-z'-]*\b)/g).forEach(token=>{
+     if(/^[A-Za-z]/.test(token)){
+      const word=document.createElement('span');word.className='word';word.textContent=token;
+      word.addEventListener('click',()=>{
+       if(selectionMode==='word' && !selectedTranscriptText())select(token);
+      });sentenceSpan.append(word);
+     }else sentenceSpan.append(document.createTextNode(token));
+    });
+    body.append(sentenceSpan);
+   }
+  }
+  el.append(body);host.append(el);
+ });
+ host.classList.toggle('sentence-mode',selectionMode==='sentence');
+ $('modeBtn').textContent=selectionMode==='word'?'选择：单词':'选择：整句';
+ $('modeBtn').setAttribute('aria-pressed',String(selectionMode==='sentence'));
+}
+function select(s){
+ selection=s.replace(/\s+/g,' ').trim();
+ if(!selection)return;
+ $('selected').textContent='选中：'+selection;
+ $('aiOutput').textContent='可使用「解释」（内置词库）或「复制到 Noema」（离线解释短语、整句）。';
+}
+render();
+$('modeBtn').onclick=()=>{selectionMode=selectionMode==='word'?'sentence':'word';render()};
+$('hideAll').onclick=()=>{hidden=new Set(paras.map((_,i)=>i));render()};
+$('showAll').onclick=()=>{hidden.clear();render()};
+document.addEventListener('selectionchange',()=>{
+ const text=selectedTranscriptText();
+ if(text)select(text);
+});
+$('selectionBtn').onclick=()=>{
+ const text=selectedTranscriptText()||selection;
+ if(text)select(text);
+ else $('aiOutput').textContent='请在原文中长按并拖动选区，或切换「选择：整句」后点一句话。';
+};$('explainBtn').onclick=()=>explain();$('savePhrase').onclick=()=>{if(!selection)return;let a=JSON.parse(localStorage.getItem('dll_phrases')||'[]');a.push({text:selection,created:new Date().toISOString()});localStorage.setItem('dll_phrases',JSON.stringify(a));$('studyInfo').textContent='已收藏：'+selection;scheduleSave()};
+$('copyNoema').onclick=async()=>{const picked=selectedTranscriptText()||selection;if(!picked){$('aiOutput').textContent='请先显示原文，点击单词或选中词组、句子后再复制。';return;}const prompt=[
 '你是我的中英双语英语学习助手，重点关注插画、数字艺术、视觉传达与汽车座舱 HMI。',
 '请基于下面这一段英文，简短说明：',
 '1. 中文自然释义和简洁英文改写；',
@@ -19,7 +83,7 @@ $('copyNoema').onclick=async()=>{const picked=window.getSelection()?.toString().
 try{await navigator.clipboard.writeText(prompt);$('aiOutput').textContent='已复制到剪贴板：'+picked+'\n切换到 Noema，选择 Qwen3 1.7B，粘贴发送；返回本页继续听写。'}catch(e){$('aiOutput').textContent='自动复制不可用。请手动选择并复制：\n'+prompt;}
 };
 
-async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个原创的汽车UI/视觉设计工作例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」尚不在内置词库。联网安装本地模型后可解释词组和句子。`}
+async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个原创的汽车UI/视觉设计工作例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」不在内置基础词库。点击「复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
 function openModal(id){$(id).classList.add('open')}document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove('open'));$('importBtn').onclick=()=>openModal('importModal');$('aiBtn').onclick=()=>{openModal('aiModal');checkGPU()};$('subtitleFile').onchange=async e=>{$('sourceText').value=await e.target.files[0].text()};function normalize(t){return t.replace(/^WEBVTT.*$/gm,'').replace(/^\d+\s*$/gm,'').replace(/^\d\d:\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/^\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/<[^>]+>/g,'').split(/\n\s*\n/).map(s=>s.trim().replace(/\n/g,' ')).filter(Boolean)}$('doImport').onclick=()=>{let t=$('sourceText').value.trim();if(!t)return;paras=normalize(t);hidden=new Set(paras.map((_,i)=>i));localStorage.setItem('dll_paras',JSON.stringify(paras));render();scheduleSave();$('importModal').classList.remove('open')};
 const audio=$('audio');let audioURL=null,a=null,b=null,loop=false;$('audioFile').onchange=e=>{if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(e.target.files[0]);audio.src=audioURL};$('speed').onchange=e=>audio.playbackRate=+e.target.value;$('back').onclick=()=>audio.currentTime=Math.max(0,audio.currentTime-5);$('setA').onclick=()=>{a=audio.currentTime;$('setA').textContent='A '+a.toFixed(1)};$('setB').onclick=()=>{b=audio.currentTime;$('setB').textContent='B '+b.toFixed(1)};$('loop').onclick=()=>{loop=!loop;$('loop').textContent='循环:'+(loop?'开':'关')};audio.ontimeupdate=()=>{if(loop&&a!==null&&b!==null&&b>a&&audio.currentTime>=b)audio.currentTime=a};
 canvas=$('ink');ctx=canvas.getContext('2d');function resize(){let rect=$('paper').getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);redraw()}function redraw(){let w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.fillStyle='#f8f9f4';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#d9e0dc';ctx.lineWidth=1;for(let y=35;y<h;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}for(let s of strokes){ctx.strokeStyle=s.erase?'#f8f9f4':s.color;ctx.lineWidth=s.erase?18:2.5;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();s.points.forEach(([x,y],i)=>i?ctx.lineTo(x*w,y*h):ctx.moveTo(x*w,y*h));ctx.stroke()}}function pos(e){let r=canvas.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]}canvas.onpointerdown=e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);current={color:pen,erase,points:[pos(e)]};strokes.push(current);redraw()};canvas.onpointermove=e=>{if(!current)return;current.points.push(pos(e));redraw()};canvas.onpointerup=()=>{current=null;hasEditedInk=true;scheduleSave()};canvas.onpointercancel=()=>{current=null;hasEditedInk=true;scheduleSave()};new ResizeObserver(resize).observe($('paper'));document.querySelectorAll('[data-color]').forEach(el=>el.onclick=()=>{pen=el.dataset.color;erase=false});$('penBtn').onclick=()=>erase=false;$('eraserBtn').onclick=()=>erase=true;$('undoBtn').onclick=()=>{strokes.pop();redraw();hasEditedInk=true;scheduleSave()};$('clearBtn').onclick=()=>{if(confirm('确定清空手写区域？')){strokes=[];redraw();hasEditedInk=true;scheduleSave()}};
