@@ -75,7 +75,7 @@ $('copyNoema').onclick=async()=>{const picked=selectedTranscriptText()||selectio
 '1. 中文自然释义和简洁英文改写；',
 '2. 最多三个重要单词或常用搭配；',
 '3. 必要时解释语法、语气及用法；',
-'4. 一个原创的汽车品牌/车机视觉设计英语例句；',
+'4. 一个设计或艺术相关英语例句；',
 '5. 一个简短复习问题。',
 '不要编造纪录片出处。',
 '英文：',picked
@@ -83,7 +83,7 @@ $('copyNoema').onclick=async()=>{const picked=selectedTranscriptText()||selectio
 try{await navigator.clipboard.writeText(prompt);$('aiOutput').textContent='已复制到剪贴板：'+picked+'\n切换到 Noema，选择 Qwen3 1.7B，粘贴发送；返回本页继续听写。'}catch(e){$('aiOutput').textContent='自动复制不可用。请手动选择并复制：\n'+prompt;}
 };
 
-async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个原创的汽车UI/视觉设计工作例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」不在内置基础词库。点击「复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
+async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个设计或艺术相关的原创英语例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」不在内置基础词库。点击「复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
 function openModal(id){$(id).classList.add('open')}document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove('open'));$('importBtn').onclick=()=>openModal('importModal');$('aiBtn').onclick=()=>{openModal('aiModal');checkGPU()};$('subtitleFile').onchange=async e=>{$('sourceText').value=await e.target.files[0].text()};function normalize(t){return t.replace(/^WEBVTT.*$/gm,'').replace(/^\d+\s*$/gm,'').replace(/^\d\d:\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/^\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/<[^>]+>/g,'').split(/\n\s*\n/).map(s=>s.trim().replace(/\n/g,' ')).filter(Boolean)}$('doImport').onclick=()=>{let t=$('sourceText').value.trim();if(!t)return;paras=normalize(t);hidden=new Set(paras.map((_,i)=>i));localStorage.setItem('dll_paras',JSON.stringify(paras));render();scheduleSave();$('importModal').classList.remove('open')};
 const audio=$('audio');let audioURL=null,a=null,b=null,loop=false;$('audioFile').onchange=e=>{if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(e.target.files[0]);audio.src=audioURL};$('speed').onchange=e=>audio.playbackRate=+e.target.value;$('back').onclick=()=>audio.currentTime=Math.max(0,audio.currentTime-5);$('setA').onclick=()=>{a=audio.currentTime;$('setA').textContent='A '+a.toFixed(1)};$('setB').onclick=()=>{b=audio.currentTime;$('setB').textContent='B '+b.toFixed(1)};$('loop').onclick=()=>{loop=!loop;$('loop').textContent='循环:'+(loop?'开':'关')};audio.ontimeupdate=()=>{if(loop&&a!==null&&b!==null&&b>a&&audio.currentTime>=b)audio.currentTime=a};
 canvas=$('ink');ctx=canvas.getContext('2d');function resize(){let rect=$('paper').getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);redraw()}function redraw(){let w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.fillStyle='#f8f9f4';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#d9e0dc';ctx.lineWidth=1;for(let y=35;y<h;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}for(let s of strokes){ctx.strokeStyle=s.erase?'#f8f9f4':s.color;ctx.lineWidth=s.erase?18:2.5;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();s.points.forEach(([x,y],i)=>i?ctx.lineTo(x*w,y*h):ctx.moveTo(x*w,y*h));ctx.stroke()}}function pos(e){let r=canvas.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]}canvas.onpointerdown=e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);current={color:pen,erase,points:[pos(e)]};strokes.push(current);redraw()};canvas.onpointermove=e=>{if(!current)return;current.points.push(pos(e));redraw()};canvas.onpointerup=()=>{current=null;hasEditedInk=true;scheduleSave()};canvas.onpointercancel=()=>{current=null;hasEditedInk=true;scheduleSave()};new ResizeObserver(resize).observe($('paper'));document.querySelectorAll('[data-color]').forEach(el=>el.onclick=()=>{pen=el.dataset.color;erase=false});$('penBtn').onclick=()=>erase=false;$('eraserBtn').onclick=()=>erase=true;$('undoBtn').onclick=()=>{strokes.pop();redraw();hasEditedInk=true;scheduleSave()};$('clearBtn').onclick=()=>{if(confirm('确定清空手写区域？')){strokes=[];redraw();hasEditedInk=true;scheduleSave()}};
@@ -92,6 +92,28 @@ function openDB(){return new Promise((resolve,reject)=>{let r=indexedDB.open('de
 async function save(){try{db=db||await openDB();await new Promise((resolve,reject)=>{const tx=db.transaction('notes','readwrite');tx.objectStore('notes').put(backup(),'latest');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('transaction aborted'));});$('studyInfo').textContent='已保存笔迹和学习数据 · 建议定期导出 JSON'}catch(e){$('studyInfo').textContent='保存失败，请导出 JSON：'+e.message}}
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(save,700)}
 $('saveBtn').onclick=save;async function restore(){try{db=await openDB();let tx=db.transaction('notes');let req=tx.objectStore('notes').get('latest');req.onsuccess=()=>{if(req.result?.strokes&&!hasEditedInk){strokes=req.result.strokes;redraw()}}}catch{}}setTimeout(restore,300);document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(saveTimer);void save()}});
+
+// Toggle handwriting without discarding strokes; keep the same audio element in reading mode.
+const viewToggle=$('viewToggle'), layout=document.querySelector('.layout');
+const audioPlayer=document.querySelector('#handwritingPane .player');
+const audioParent=audioPlayer.parentElement, audioNext=audioPlayer.nextSibling;
+function setReadingMode(reading){
+ if(reading===layout.classList.contains('reading-mode'))return;
+ if(reading){
+  void save();
+  $('readingAudioDock').append(audioPlayer);
+ }else{
+  audioParent.insertBefore(audioPlayer,audioNext);
+ }
+ layout.classList.toggle('reading-mode',reading);
+ viewToggle.setAttribute('aria-pressed',String(reading));
+ viewToggle.textContent=reading?'展开手写 · 听写模式':'收起手写 · 阅读模式';
+ // Canvas resize is observed and normalized strokes remain available on reopening.
+ try{localStorage.setItem('dll_reading_mode',reading?'1':'0')}catch{}
+}
+viewToggle.addEventListener('click',()=>setReadingMode(!layout.classList.contains('reading-mode')));
+try{if(localStorage.getItem('dll_reading_mode')==='1')setReadingMode(true)}catch{}
+
 async function checkGPU(){let ok=!!navigator.gpu;$('gpuStatus').textContent=ok?'检测到 WebGPU 接口（尚需实际模型验证）':'未检测到 WebGPU：此浏览器无法运行当前本地模型方案';$('modelInfo').textContent='3.1 诊断版：分阶段检测运行组件、模型下载与 GPU 初始化。首次安装需联网。';$('installAI').disabled=!ok}
 function aiReport(stage,message){$('aiStatus').textContent='【'+stage+'】 '+message;console.info('[ListeningLab AI]',stage,message)}
 async function loadWebLLM(){let urls=['https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.80/+esm','https://esm.run/@mlc-ai/web-llm@0.2.80'];let errors=[];for(let url of urls){try{aiReport('组件加载','尝试 '+new URL(url).hostname);let lib=await import(/* webpackIgnore: true */ url);if(typeof lib.CreateMLCEngine!=='function'||!lib.prebuiltAppConfig?.model_list?.length)throw Error('模块导出不完整');return lib}catch(e){errors.push(new URL(url).hostname+': '+(e?.message||String(e)))}}throw Error('两个组件地址均加载失败：'+errors.join('；'))}
@@ -100,7 +122,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v3.6');
+   const cache=await caches.open('design-listening-lab-v3.7');
    const core=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
