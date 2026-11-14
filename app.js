@@ -5,7 +5,7 @@ const $=id=>document.getElementById(id);let paras=JSON.parse(localStorage.getIte
 ];let hidden=new Set(paras.map((_,i)=>i)),selection='',engine=null,modelName='',aiLoading=false,strokes=[],current=null,pen='#1d2939',erase=false,ctx,canvas,db;
 const dictionary={illustrator:'插画师',ordinary:'普通的；日常的',visual:'视觉的',idea:'想法；概念',challenge:'挑战',relationship:'关系；关联',communication:'传达；沟通',complex:'复杂的',reduced:'简化；提炼',viewer:'观看者',connection:'联系；联想',experimentation:'实验性探索',creative:'创意的',process:'过程',sketching:'草图绘制',possibilities:'多种可能性',direction:'方向',obvious:'明显的'};
 // Mode-driven selection: tap a word or a full sentence; long-press to select any phrase in Safari.
-let selectionMode='word';
+let selectionMode='word',rangeSelectedAt=0;
 function selectedTranscriptText(){
  const sel=window.getSelection();
  if(!sel || sel.isCollapsed || !sel.rangeCount)return '';
@@ -31,13 +31,13 @@ function render(){
     const sentenceSpan=document.createElement('span');sentenceSpan.className='sentence';
     sentenceSpan.title='切换至整句模式后点击选取这句话';
     sentenceSpan.addEventListener('click',()=>{
-     if(selectionMode==='sentence' && !selectedTranscriptText())select(sentence.trim());
+     if(selectionMode==='sentence' && !selectedTranscriptText() && Date.now()-rangeSelectedAt>700)select(sentence.trim());
     });
     sentence.split(/(\b[A-Za-z][A-Za-z'-]*\b)/g).forEach(token=>{
      if(/^[A-Za-z]/.test(token)){
       const word=document.createElement('span');word.className='word';word.textContent=token;
       word.addEventListener('click',()=>{
-       if(selectionMode==='word' && !selectedTranscriptText())select(token);
+       if(selectionMode==='word' && !selectedTranscriptText() && Date.now()-rangeSelectedAt>700)select(token);
       });sentenceSpan.append(word);
      }else sentenceSpan.append(document.createTextNode(token));
     });
@@ -62,7 +62,7 @@ $('hideAll').onclick=()=>{hidden=new Set(paras.map((_,i)=>i));render()};
 $('showAll').onclick=()=>{hidden.clear();render()};
 document.addEventListener('selectionchange',()=>{
  const text=selectedTranscriptText();
- if(text)select(text);
+ if(text){rangeSelectedAt=Date.now();select(text)}
 });
 $('selectionBtn').onclick=()=>{
  const text=selectedTranscriptText()||selection;
@@ -100,7 +100,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v3.5');
+   const cache=await caches.open('design-listening-lab-v3.6');
    const core=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
