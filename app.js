@@ -117,20 +117,6 @@ async function copyForNoema(detailed){
 }
 $('copyQuick').onclick=()=>copyForNoema(false);
 $('copyNoema').onclick=()=>copyForNoema(true);
-$('shareNoema').onclick=async()=>{
- const text=handoffText();if(!text)return;
- const prompt=makeNoemaPrompt(text,false);
- if(typeof navigator.share!=='function'){
-  $('aiOutput').textContent='此浏览器不提供系统分享菜单，请改用「快速解释 · 复制」。';
-  return;
- }
- try{
-  await navigator.share({title:'设计英语解释',text:prompt});
-  $('aiOutput').textContent='已打开系统分享菜单。如 Noema 未出现在可分享目标中，请使用复制粘贴。';
- }catch(e){
-  if(e?.name!=='AbortError')$('aiOutput').textContent='系统分享不可用：'+(e?.message||String(e))+'。请改用复制。';
- }
-};
 
 
 async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个设计或艺术相关的原创英语例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」不在内置基础词库。点击「复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
@@ -208,7 +194,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v3.9');
+   const cache=await caches.open('design-listening-lab-v3.10');
    const core=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
