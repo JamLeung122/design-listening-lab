@@ -110,10 +110,8 @@ test('plain transcripts break into numbered study-size segments without losing t
  const context=lessonFunctions();
  const text='This is one sentence. This is another sentence. A third sentence begins. This is the fourth sentence.';
  context.raw=text;
- assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(importSegments(raw).map(s=>s.text))',context)),[
-  'This is one sentence. This is another sentence.','A third sentence begins. This is the fourth sentence.'
- ]);
- context.raw=Array.from({length:110},(_,i)=>'word'+i).join(' ');
+ assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(importSegments(raw).map(s=>s.text))',context)),[text]);
+ context.raw=Array.from({length:170},(_,i)=>'word'+i).join(' ');
  assert.equal(vm.runInContext('importSegments(raw).length',context),3);
  assert.equal(vm.runInContext("importSegments(raw).map(s=>s.text).join(' ')",context),context.raw);
 });
@@ -179,4 +177,43 @@ test('playback jumps a marked gap and stops at the segment end',()=>{
  vm.runInNewContext(logic+';enforcePlaybackBounds();',context);
  assert.equal(audio.currentTime,38);
  assert.equal(audio.paused,true);
+});
+
+
+test('calibrated boundaries anchor the next text segment without moving later fixed ranges',()=>{
+ const context=lessonFunctions();
+ const actual=JSON.parse(vm.runInContext(`
+ const stops=[{start:5,end:15},{start:20,end:45}];
+ JSON.stringify(alignSegments(
+  ['First','Second','Third','Fourth'].map(text=>({text,start:null,end:null})),
+  [{start:6,end:12},null,null,{start:32,end:39}],stops,45
+ ));
+ `,context));
+ assert.deepEqual(actual,[
+  {start:6,end:12,kind:'已校准'},
+  {start:12,end:24.5,kind:'承接估算'},
+  {start:24.5,end:32,kind:'承接估算'},
+  {start:32,end:39,kind:'已校准'}
+ ]);
+});
+
+test('calibrated subtitle segment shifts later cues while retaining their spacing',()=>{
+ const context=lessonFunctions();
+ const actual=JSON.parse(vm.runInContext(`
+ JSON.stringify(alignSegments(
+  [{text:'First',start:0,end:6},{text:'Second',start:8,end:15},{text:'Third',start:16,end:20}],
+  [{start:3,end:10}],[{start:0,end:30}],30
+ ));
+ `,context));
+ assert.deepEqual(actual,[
+  {start:3,end:10,kind:'已校准'},
+  {start:12,end:19,kind:'随前段调整'},
+  {start:20,end:24,kind:'随前段调整'}
+ ]);
+});
+
+test('merging only carries an already learned mark when both segments were learned',()=>{
+ const context=lessonFunctions();
+ assert.equal(vm.runInContext("JSON.stringify([...mergeStudyFlags(new Set([0,2,3]),1)])",context),'[0,2]');
+ assert.equal(vm.runInContext("JSON.stringify([...mergeStudyFlags(new Set([1,2]),1)])",context),'[1]');
 });

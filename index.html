@@ -8,7 +8,7 @@
   <title>Design Listening Lab</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="listening-lab-release" content="4.8">
+  <meta name="listening-lab-release" content="4.9">
   <!-- Keep layout with the HTML so Safari can render it even when asset caches disagree. -->
   <style>
 :root {
@@ -105,7 +105,9 @@ h1 { font-size: clamp(1.25rem, 2.4vw, 1.625rem); line-height: 1.15; letter-spaci
 .segment-index { color: var(--accent); font-size: .875rem; font-weight: 700; }
 .para[data-learned="true"] .segment-index { color: #a8d7b3; }
 .para button[aria-pressed="true"] { background: #21372a; border-color: #608c6b; color: #c6efcf; }
-.segment-time { color: var(--muted); font-size: .75rem; margin-top: 5px; }
+.segment-foot { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; margin-top:5px; }
+.segment-time { color: var(--muted); font-size: .75rem; }
+.segment-foot .quiet { color:var(--muted); font-size:.75rem; }
 .lesson-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
 #lessonStatus { overflow-wrap:anywhere; }
 .timing-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; }
@@ -419,7 +421,8 @@ function readStoredArray(key, isValid){
 }
 
 const LESSON_KEY='dll_segments_v1';
-const MAX_SEGMENT_WORDS=48;
+const MAX_SEGMENT_WORDS=76;
+const TARGET_SEGMENT_WORDS=52;
 const wordCount=text=>text.trim().split(/\s+/).length;
 
 function sentenceParts(text){
@@ -439,13 +442,18 @@ function splitPlainText(text){
    const tokens=chunk.trim().split(/\s+/);
    for(let start=0;start<tokens.length;start+=MAX_SEGMENT_WORDS){
     const part=tokens.slice(start,start+MAX_SEGMENT_WORDS);
-    if(group.length&&(group.length>=2||words+part.length>MAX_SEGMENT_WORDS)){
+    if(group.length&&(words>=TARGET_SEGMENT_WORDS||words+part.length>MAX_SEGMENT_WORDS)){
      groups.push(group.join(' '));group=[];words=0;
     }
     group.push(part.join(' '));words+=part.length;
    }
   }
-  if(group.length)groups.push(group.join(' '));
+  if(group.length){
+   const tail=group.join(' ');
+   if(words<22&&groups.length&&wordCount(groups[groups.length-1])+words<=MAX_SEGMENT_WORDS){
+    groups[groups.length-1]+=' '+tail;
+   }else groups.push(tail);
+  }
   return groups.map(text=>({text,start:null,end:null}));
  });
 }
@@ -478,7 +486,7 @@ function importSegments(raw){
  const segments=[];
  let group=null;
  for(const cue of cues){
-  if(group&&cue.start-group.end<2.5&&cue.end-group.start<=26&&wordCount(group.text)+wordCount(cue.text)<=MAX_SEGMENT_WORDS){
+  if(group&&cue.start-group.end<2.5&&cue.end-group.start<=42&&wordCount(group.text)+wordCount(cue.text)<=MAX_SEGMENT_WORDS){
    group.text+=' '+cue.text;group.end=Math.max(group.end,cue.end);
   }else{
    group={...cue};segments.push(group);
@@ -507,6 +515,11 @@ function trimWindows(trim,duration){
  }
  if(cursor<end)windows.push({start:cursor,end});
  return windows;
+}
+
+function boundedWindows(start,end,windows){
+ return windows.map(window=>({start:Math.max(start,window.start),end:Math.min(end,window.end)}))
+  .filter(window=>window.start<window.end);
 }
 
 function clipRange(start,end,windows){
@@ -539,6 +552,55 @@ function estimateRanges(texts,duration,windows=[{start:0,end:duration}]){
   cursor+=weight;
   return {start,end:toSource(cursor*usable/total,true)};
  });
+}
+
+function isTimed(range){
+ return !!range&&Number.isFinite(range.start)&&Number.isFinite(range.end)&&range.end>range.start;
+}
+
+function alignSegments(segments,manual,windows,duration){
+ const ranges=new Array(segments.length).fill(null);
+ const allTimed=segments.every(isTimed);
+ const anchorAt=i=>isTimed(manual[i])?manual[i]:!allTimed&&isTimed(segments[i])?segments[i]:null;
+ let previous=null,index=0;
+ while(index<segments.length){
+  const fixed=anchorAt(index);
+  if(fixed){
+   ranges[index]={...fixed,kind:fixed.kind||(fixed===manual[index]?'已校准':'字幕时间')};
+   previous={index,range:fixed};index++;continue;
+  }
+  let next=index+1;
+  while(next<segments.length&&!anchorAt(next))next++;
+  const right=anchorAt(next)?.start??duration;
+  if(allTimed){
+   const shift=previous?previous.range.end-segments[previous.index].end:0;
+   let lower=previous?.range.end??0;
+   for(let i=index;i<next;i++){
+    const start=Math.max(lower,segments[i].start+shift);
+    const end=Math.min(right,segments[i].end+shift);
+    if(end>start){
+     ranges[i]={start,end,kind:previous?'随前段调整':'字幕时间'};
+     if(previous)lower=end;
+    }
+   }
+  }else{
+   const lower=previous?.range.end??0;
+   const pieces=estimateRanges(segments.slice(index,next).map(segment=>segment.text),duration,boundedWindows(lower,right,windows));
+   pieces.forEach((range,offset)=>{ranges[index+offset]={...range,kind:previous?'承接估算':'估算时间'}});
+  }
+  index=next;
+ }
+ return ranges;
+}
+
+function mergeStudyFlags(flags,index){
+ const merged=new Set();
+ for(const value of flags){
+  if(value<index)merged.add(value);
+  else if(value>index+1)merged.add(value-1);
+ }
+ if(flags.has(index)&&flags.has(index+1))merged.add(index);
+ return merged;
 }
 
 function parseTrim(startText,endText,skipText,duration){
@@ -576,7 +638,7 @@ let paras=segments.map(segment=>segment.text);
 let learned=new Set((Array.isArray(savedLesson?.learned)?savedLesson.learned:[]).filter(i=>Number.isInteger(i)&&i>=0&&i<paras.length));
 let savedAudioKey=typeof savedLesson?.audioKey==='string'?savedLesson.audioKey:null;
 let adjustments=Array.isArray(savedLesson?.adjustments)?savedLesson.adjustments:[];
-let audioFileKey=null,estimatedRanges=[],audioDuration=NaN;
+let audioFileKey=null,alignedRanges=[],audioDuration=NaN;
 let audioTrim=null,keptWindows=[];
 let hidden=new Set(!savedLesson&&savedTranscript?.length?paras.map((_,i)=>i):[]),selection='',engine=null,modelName='',aiLoading=false,strokes=[],current=null,pen='#1d2939',erase=false,ctx,canvas,db;
 
@@ -601,12 +663,10 @@ function formatTime(seconds){
 
 function getSegmentRange(i){
  if(!Number.isFinite(audioDuration)||audioDuration<=0)return null;
- const segment=segments[i];
- const adjusted=audioFileKey===savedAudioKey?adjustments[i]:null;
- const source=adjusted??(Number.isFinite(segment.start)&&Number.isFinite(segment.end)?segment:estimatedRanges[i]);
- if(!source||!Number.isFinite(source.start)||!Number.isFinite(source.end)||source.start<0||source.start>=audioDuration)return null;
+ const source=alignedRanges[i];
+ if(!isTimed(source)||source.start>=audioDuration)return null;
  const range=clipRange(source.start,Math.min(source.end,audioDuration),keptWindows);
- return range?{...range,kind:adjusted?'已校准':source===segment?'字幕时间':'估算时间'}:null;
+ return range?{...range,kind:source.kind}:null;
 }
 // User-controlled transcript size; persists across offline PWA relaunches.
 const fontSizeControl=$('fontSize');
@@ -690,13 +750,24 @@ function render(){
    }
   }
   el.append(body);
+  const foot=document.createElement('div');
+  foot.className='segment-foot';
   if(range||Number.isFinite(segments[i].start)){
    const timing=document.createElement('p');
    timing.className='segment-time';
    const label=range||{...segments[i],kind:Number.isFinite(audioDuration)?'不在保留范围':'字幕时间'};
    timing.textContent=label.kind+' · '+formatTime(label.start)+' – '+formatTime(label.end);
-   el.append(timing);
+   foot.append(timing);
   }
+  if(i<segments.length-1){
+   const merge=document.createElement('button');
+   merge.className='quiet';
+   merge.textContent='合并下一段';
+   merge.setAttribute('aria-label','合并第 '+(i+1)+'、'+(i+2)+' 段');
+   merge.onclick=()=>mergeNextSegment(i);
+   foot.append(merge);
+  }
+  if(foot.childElementCount)el.append(foot);
   host.append(el);
  });
  host.classList.toggle('sentence-mode',selectionMode==='sentence');
@@ -704,6 +775,37 @@ function render(){
  $('modeBtn').textContent=selectionMode==='word'?'选择：单词':'选择：整句';
  $('modeBtn').setAttribute('aria-pressed',String(selectionMode==='sentence'));
 }
+function mergeNextSegment(index){
+ const first=segments[index],second=segments[index+1];
+ if(!second)return;
+ const timed=isTimed(first)&&isTimed(second);
+ const saved=[adjustments[index],adjustments[index+1]].some(isTimed);
+ let combined=null;
+ if(saved){
+  const left=getSegmentRange(index),right=getSegmentRange(index+1);
+  if(audioFileKey!==savedAudioKey||!left||!right){
+   reportLesson('这两段有已校准的时间。请先导入原来的 M4A，并确认两段都在保留范围内。');return;
+  }
+  combined={start:Math.min(left.start,right.start),end:Math.max(left.end,right.end),kind:'合并范围'};
+ }
+ audio.pause();stopSegment();
+ segments.splice(index,2,{
+  text:first.text+' '+second.text,
+  start:timed?first.start:null,end:timed?Math.max(first.end,second.end):null
+ });
+ paras=segments.map(segment=>segment.text);
+ if(adjustments.length>index){
+  adjustments.splice(index,2,combined);
+ }
+ learned=mergeStudyFlags(learned,index);
+ hidden=mergeStudyFlags(hidden,index);
+ refreshAudioRanges();render();scheduleSave();
+ if(!saveLesson())reportLesson('两段已在当前页面合并，浏览器暂时无法保存。');
+ else reportLesson('已合并相邻两段。');
+ const focus=$('paragraphs').children[index]?.querySelector('.segment-toolbar button');
+ focus?.focus({preventScroll:true});
+}
+
 function select(s){
  selection=s.replace(/\s+/g,' ').trim();
  if(!selection)return;
@@ -983,7 +1085,8 @@ function refreshAudioRanges(){
  const ready=Number.isFinite(audioDuration)&&audioDuration>0;
  $('trimAudioBtn').hidden=!ready;
  keptWindows=ready?trimWindows(audioTrim,audioDuration):[];
- estimatedRanges=ready?estimateRanges(paras,audioDuration,keptWindows):[];
+ const manual=audioFileKey===savedAudioKey?adjustments:[];
+ alignedRanges=ready?alignSegments(segments,manual,keptWindows,audioDuration):[];
  if(!audioURL){reportLesson('导入对应的 M4A 后，即可逐段播放。');return}
  if(!Number.isFinite(audioDuration)){reportLesson('正在读取音频…');return}
  const timed=segments.some(segment=>Number.isFinite(segment.start));
@@ -1044,7 +1147,7 @@ async function playSegment(index){
 
 function editSegmentTime(index){
  const range=getSegmentRange(index);
- const fallback=estimatedRanges[index];
+ const fallback=alignedRanges[index];
  timingIndex=index;
  audio.pause();stopSegment();
  $('timingTitle').textContent='校准第 '+(index+1)+' 段';
@@ -1083,9 +1186,19 @@ $('saveTiming').onclick=()=>{
  if(timingIndex===null)return;
  const start=parseTime($('segmentStart').value);
  let end=parseTime($('segmentEnd').value);
- if(Number.isFinite(end)&&end-audioDuration<=0.05)end=Math.min(end,audioDuration);
+ if(Number.isFinite(end)&&end-audioDuration<=0.051)end=Math.min(end,audioDuration);
  if(!Number.isFinite(start)||!Number.isFinite(end)||!Number.isFinite(audioDuration)||start<0||end<=start||end>audioDuration){
   $('timingStatus').textContent='时间须在音频范围内，结束时间要晚于开始时间。';return;
+ }
+ if(!clipRange(start,end,keptWindows)){
+  $('timingStatus').textContent='这段时间都已被跳过，请调整起止时间或跳过设置。';return;
+ }
+ if(savedAudioKey===audioFileKey){
+  const previous=adjustments.slice(0,timingIndex).reverse().find(isTimed);
+  const next=adjustments.slice(timingIndex+1).find(isTimed);
+  if(previous&&start<previous.end-0.051||next&&end>next.start+0.051){
+   $('timingStatus').textContent='本段与相邻的已校准区间重叠，请检查起止时间。';return;
+  }
  }
  if(savedAudioKey!==audioFileKey){savedAudioKey=audioFileKey;adjustments=[]}
  adjustments[timingIndex]={start,end};
@@ -1093,10 +1206,10 @@ $('saveTiming').onclick=()=>{
  const persisted=saveLesson();scheduleSave();
  const index=timingIndex;
  closeModal('segmentTimingModal');timingIndex=null;
- render();
+ refreshAudioRanges();render();
  const button=document.querySelector('[data-segment-play="'+index+'"]');
  button?.focus({preventScroll:true});
- reportLesson(persisted?'本段时间已校准。重新导入同一个音频后可继续使用。':'本段时间已校准，仅在当前页面有效。');
+ reportLesson(persisted?'本段已校准，后续未校准段已更新。重新导入同一个音频后仍有效。':'本段已校准，后续段已更新，仅在当前页面有效。');
 };
 
 const trimStorageKey=()=> 'dll_trim_v1:'+audioFileKey;
@@ -1166,7 +1279,7 @@ audioFile.onchange=event=>{
  audio.pause();
  if(audioURL)URL.revokeObjectURL(audioURL);
  audioFileKey=[file.name,file.size,file.lastModified].join(':');
- audioDuration=NaN;audioTrim=null;estimatedRanges=[];
+ audioDuration=NaN;audioTrim=null;alignedRanges=[];
  audioURL=URL.createObjectURL(file);audio.src=audioURL;
  a=b=null;loop=false;
  $('setA').textContent='设 A 点';$('setB').textContent='设 B 点';$('loop').textContent='循环：关';
@@ -1293,7 +1406,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v4.8');
+   const cache=await caches.open('design-listening-lab-v4.9');
    const core=['./index.html','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }

@@ -1,6 +1,6 @@
 // Design Listening Lab: offline-first app shell (same-origin only).
 // Model weight downloads and external CDN modules are deliberately not cached here.
-const CACHE='design-listening-lab-v4.8';
+const CACHE='design-listening-lab-v4.9';
 const CORE=['./index.html','./manifest.webmanifest','./icon.svg'];
 const OFFLINE_PAGE='./index.html';
 self.addEventListener('install',event=>{
@@ -11,7 +11,7 @@ self.addEventListener('install',event=>{
   // A CDN may briefly serve the previous HTML while a release propagates.
   const shell=await cache.match(OFFLINE_PAGE);
   const html=await shell?.text();
-  if(!html?.includes('<meta name="listening-lab-release" content="4.8">')){
+  if(!html?.includes('<meta name="listening-lab-release" content="4.9">')){
    await caches.delete(CACHE);
    throw new Error('The matching Listening Lab release is not available yet');
   }
