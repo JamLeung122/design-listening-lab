@@ -119,6 +119,64 @@ $('copyQuick').onclick=()=>copyForNoema(false);
 $('copyNoema').onclick=()=>copyForNoema(true);
 
 
+// Online AI is optional and only sends explicitly selected English text when tapped.
+// Never put a provider API key in client code or send one from the browser.
+let onlineAccessToken='';
+let onlineEndpoint='';
+try{onlineEndpoint=localStorage.getItem('dll_online_endpoint')||''}catch{}
+$('onlineEndpoint').value=onlineEndpoint;
+$('onlineSettingsBtn').onclick=()=>{
+ $('onlineEndpoint').value=onlineEndpoint;
+ $('onlineToken').value=onlineAccessToken;
+ $('onlineConfigStatus').textContent='只有你主动点击「在线 AI 解释」时才发送选中的英文。';
+ openModal('onlineSettingsModal');
+};
+$('saveOnlineSettings').onclick=()=>{
+ const value=$('onlineEndpoint').value.trim();
+ let url;
+ try{
+  url=new URL(value);
+  if(url.protocol!=='https:' || url.pathname!=='/explain' || url.username || url.password || url.search || url.hash)throw Error('invalid');
+ }catch{$('onlineConfigStatus').textContent='请输入 HTTPS 地址，并确保路径以 /explain 结尾。';return}
+ const token=$('onlineToken').value.trim();
+ if(!token){$('onlineConfigStatus').textContent='请输入 APP_ACCESS_TOKEN 访问口令（不是 OpenAI API Key）。';return}
+ onlineEndpoint=url.href;
+ onlineAccessToken=token;
+ try{localStorage.setItem('dll_online_endpoint',onlineEndpoint)}catch{}
+ $('onlineConfigStatus').textContent='连接设置已保存在当前页面。现在选择英文并点击「在线 AI 解释」。';
+};
+let onlineExplaining=false;
+$('onlineExplainBtn').onclick=async()=>{
+ const text=(selectedTranscriptText()||selection).trim();
+ if(!text){$('aiOutput').textContent='请先选中一个英文单词、短语或句子。';return}
+ if(!navigator.onLine){$('aiOutput').textContent='当前离线。请使用「基础释义」或复制到 Noema。';return}
+ if(!onlineEndpoint||!onlineAccessToken){
+  $('aiOutput').textContent='在线 AI 尚未连接。请先点击顶部「在线 AI 设置」。';
+  openModal('onlineSettingsModal');return;
+ }
+ if(onlineExplaining)return;
+ onlineExplaining=true;
+ $('onlineExplainBtn').disabled=true;
+ $('aiOutput').textContent='正在在线解释：'+text;
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),30000);
+ try{
+  const response=await fetch(onlineEndpoint,{
+   method:'POST',
+   mode:'cors',
+   headers:{'Content-Type':'application/json','Authorization':'Bearer '+onlineAccessToken},
+   body:JSON.stringify({text,mode:'quick'}),
+   signal:controller.signal
+  });
+  const data=await response.json();
+  if(!response.ok)throw Error(data.error||'HTTP '+response.status);
+  if(typeof data.answer!=='string')throw Error('响应中缺少解释文字');
+  $('aiOutput').textContent=data.answer;
+ }catch(e){
+  $('aiOutput').textContent='在线解释未成功：'+(e.name==='AbortError'?'连接超时':e.message||String(e))+'。你的原文与手写不会受到影响。';
+ }finally{clearTimeout(timer);onlineExplaining=false;$('onlineExplainBtn').disabled=false}
+};
+
 async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个设计或艺术相关的原创英语例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」不在内置基础词库。点击「复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
 function openModal(id){$(id).classList.add('open')}document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove('open'));$('importBtn').onclick=()=>openModal('importModal');$('aiBtn').onclick=()=>{openModal('aiModal');checkGPU()};$('subtitleFile').onchange=async e=>{$('sourceText').value=await e.target.files[0].text()};function normalize(t){return t.replace(/^WEBVTT.*$/gm,'').replace(/^\d+\s*$/gm,'').replace(/^\d\d:\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/^\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/<[^>]+>/g,'').split(/\n\s*\n/).map(s=>s.trim().replace(/\n/g,' ')).filter(Boolean)}$('doImport').onclick=()=>{let t=$('sourceText').value.trim();if(!t)return;paras=normalize(t);hidden=new Set(paras.map((_,i)=>i));localStorage.setItem('dll_paras',JSON.stringify(paras));render();scheduleSave();$('importModal').classList.remove('open')};
 const audio=$('audio');let audioURL=null,a=null,b=null,loop=false;$('audioFile').onchange=e=>{if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(e.target.files[0]);audio.src=audioURL};$('speed').onchange=e=>audio.playbackRate=+e.target.value;$('back').onclick=()=>audio.currentTime=Math.max(0,audio.currentTime-5);$('setA').onclick=()=>{a=audio.currentTime;$('setA').textContent='A '+a.toFixed(1)};$('setB').onclick=()=>{b=audio.currentTime;$('setB').textContent='B '+b.toFixed(1)};$('loop').onclick=()=>{loop=!loop;$('loop').textContent='循环:'+(loop?'开':'关')};audio.ontimeupdate=()=>{if(loop&&a!==null&&b!==null&&b>a&&audio.currentTime>=b)audio.currentTime=a};
@@ -194,7 +252,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v3.10');
+   const cache=await caches.open('design-listening-lab-v4.0');
    const core=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
