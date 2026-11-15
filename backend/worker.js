@@ -1,5 +1,5 @@
 // Cloudflare Worker backend for Design Listening Lab.
-// Configure OPENAI_API_KEY and APP_ACCESS_TOKEN as Worker Secrets.
+// Configure DASHSCOPE_API_KEY and APP_ACCESS_TOKEN as Worker Secrets (OpenAI optional).
 // Never put either secret in a public GitHub repository or browser code.
 const ALLOWED_ORIGIN='https://jamleung122.github.io';
 const encoder=new TextEncoder();
@@ -23,7 +23,7 @@ export default {
   if(origin!==ALLOWED_ORIGIN)return respond({error:'Origin not allowed'},403,origin);
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});
   if(request.method!=='POST')return respond({error:'Method not allowed'},405,origin);
-  if(!env.OPENAI_API_KEY||!env.APP_ACCESS_TOKEN)return respond({error:'Server not configured'},503,origin);
+  if(!(env.DASHSCOPE_API_KEY||env.OPENAI_API_KEY)||!env.APP_ACCESS_TOKEN)return respond({error:'Server not configured'},503,origin);
   const access=request.headers.get('Authorization')?.replace(/^Bearer\s+/i,'')||'';
   if(!access||!await constantTimeEqual(access,env.APP_ACCESS_TOKEN))return respond({error:'Access token invalid'},401,origin);
   const size=Number(request.headers.get('Content-Length')||0);
@@ -39,24 +39,30 @@ export default {
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),25000);
   try{
-   const ai=await fetch('https://api.openai.com/v1/responses',{
+   const useQwen=!!env.DASHSCOPE_API_KEY;
+   // Fixed allowlisted regional endpoints prevent the browser from choosing arbitrary upstream hosts.
+   const qwenRegion=env.QWEN_REGION==='singapore'?'singapore':'beijing';
+   const qwenUrl=qwenRegion==='singapore'
+    ?'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions'
+    :'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+   const providerUrl=useQwen?qwenUrl:'https://api.openai.com/v1/responses';
+   const providerKey=useQwen?env.DASHSCOPE_API_KEY:env.OPENAI_API_KEY;
+   const model=useQwen?(env.QWEN_MODEL||'qwen-turbo'):(env.OPENAI_MODEL||'gpt-4.1-mini');
+   const requestBody=useQwen
+    ?{model,messages:[{role:'system',content:prompt},{role:'user',content:text}],max_tokens:mode==='detailed'?600:360,temperature:0.3}
+    :{model,instructions:prompt,input:text,max_output_tokens:mode==='detailed'?500:280,store:false};
+   const ai=await fetch(providerUrl,{
     method:'POST',signal:controller.signal,
-    headers:{'Authorization':'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
-    body:JSON.stringify({
-     model:env.OPENAI_MODEL||'gpt-4.1-mini',
-     instructions:prompt,
-     input:text,
-     max_output_tokens:mode==='detailed'?500:280,
-     store:false
-    })
+    headers:{'Authorization':'Bearer '+providerKey,'Content-Type':'application/json'},
+    body:JSON.stringify(requestBody)
    });
    const data=await ai.json().catch(()=>({}));
-   if(!ai.ok)return respond({error:ai.status===429?'AI rate limit reached':'AI provider unavailable',code:ai.status},502,origin);
-   const answer=(data.output||[]).flatMap(item=>item.content||[])
-    .filter(part=>part.type==='output_text'&&typeof part.text==='string')
-    .map(part=>part.text).join('\n').trim();
-   if(!answer)return respond({error:'AI returned no text'},502,origin);
-   return respond({answer,model:data.model||env.OPENAI_MODEL||'gpt-4.1-mini'},200,origin);
+   if(!ai.ok)return respond({error:ai.status===429?'模型额度不足或调用频率受限':'AI 服务调用失败，请检查区域、模型权限和额度',code:ai.status},502,origin);
+   const answer=useQwen
+    ?(data.choices?.[0]?.message?.content||'').trim()
+    :(data.output||[]).flatMap(item=>item.content||[]).filter(part=>part.type==='output_text'&&typeof part.text==='string').map(part=>part.text).join('\n').trim();
+   if(!answer)return respond({error:'AI 没有返回文字，请检查模型设置'},502,origin);
+   return respond({answer,model:data.model||model,provider:useQwen?'qwen':'openai'},200,origin);
   }catch(e){return respond({error:e?.name==='AbortError'?'AI request timed out':'AI request failed'},504,origin)}
   finally{clearTimeout(timeout)}
  }
