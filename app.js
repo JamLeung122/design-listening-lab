@@ -139,6 +139,7 @@ $('saveOnlineSettings').onclick=()=>{
   if(url.protocol!=='https:' || url.pathname!=='/explain' || url.username || url.password || url.search || url.hash)throw Error('invalid');
  }catch{$('onlineConfigStatus').textContent='请输入 HTTPS 地址，并确保路径以 /explain 结尾。';return}
  const token=$('onlineToken').value.trim();
+ if(token.startsWith('sk-')){$('onlineConfigStatus').textContent='这里需要独立的应用访问口令，请勿输入百炼或 OpenAI API Key。';return}
  if(!token){$('onlineConfigStatus').textContent='请输入 APP_ACCESS_TOKEN 访问口令（不是百炼 API Key）。';return}
  onlineEndpoint=url.href;
  onlineAccessToken=token;
@@ -149,6 +150,7 @@ let onlineExplaining=false;
 $('onlineExplainBtn').onclick=async()=>{
  const text=(selectedTranscriptText()||selection).trim();
  if(!text){$('aiOutput').textContent='请先选中一个英文单词、短语或句子。';return}
+ if(text.length>1200){$('aiOutput').textContent='一次最多解释 1200 个字符，请缩短选区。';return}
  if(!navigator.onLine){$('aiOutput').textContent='当前离线。请使用「基础释义」或复制到 Noema。';return}
  if(!onlineEndpoint||!onlineAccessToken){
   $('aiOutput').textContent='在线 AI 尚未连接。请先点击顶部「在线 AI 设置」。';
@@ -163,7 +165,7 @@ $('onlineExplainBtn').onclick=async()=>{
  try{
   const response=await fetch(onlineEndpoint,{
    method:'POST',
-   mode:'cors',
+   mode:'cors',cache:'no-store',credentials:'omit',redirect:'error',
    headers:{'Content-Type':'application/json','Authorization':'Bearer '+onlineAccessToken},
    body:JSON.stringify({text,mode:'quick'}),
    signal:controller.signal
@@ -252,7 +254,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v4.1');
+   const cache=await caches.open('design-listening-lab-v4.2');
    const core=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }

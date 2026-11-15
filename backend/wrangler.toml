@@ -3,5 +3,14 @@ main = "worker.js"
 compatibility_date = "2026-11-01"
 
 [vars]
-QWEN_MODEL = "qwen-turbo"
+QWEN_MODEL = "qwen3.8-flash"
 QWEN_REGION = "beijing"
+
+# Per-location burst protection, not a billing cap.
+[[ratelimits]]
+name = "AI_RATE_LIMITER"
+namespace_id = "1457516941"
+simple = { limit = 10, period = 60 }
+
+[observability]
+enabled = false

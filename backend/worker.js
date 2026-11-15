@@ -1,10 +1,10 @@
 // Cloudflare Worker backend for Design Listening Lab.
-// Configure DASHSCOPE_API_KEY and APP_ACCESS_TOKEN as Worker Secrets (OpenAI optional).
+// Configure DASHSCOPE_API_KEY and APP_ACCESS_TOKEN as Worker Secrets (both required).
 // Never put either secret in a public GitHub repository or browser code.
 const ALLOWED_ORIGIN='https://jamleung122.github.io';
 const encoder=new TextEncoder();
 function cors(origin){
- return {'Access-Control-Allow-Origin':origin===ALLOWED_ORIGIN?origin:'null','Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Authorization','Vary':'Origin','Cache-Control':'no-store'};
+ return {...(origin===ALLOWED_ORIGIN?{'Access-Control-Allow-Origin':origin}:{}),'Access-Control-Allow-Methods':'POST, OPTIONS','Access-Control-Allow-Headers':'Content-Type, Authorization','Vary':'Origin','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 }
 function respond(body,status=200,origin=''){
  return new Response(JSON.stringify(body),{status,headers:{'Content-Type':'application/json; charset=utf-8',...cors(origin)}});
@@ -13,7 +13,28 @@ async function constantTimeEqual(a,b){
  const left=encoder.encode(a),right=encoder.encode(b);
  if(left.length!==right.length)return false;
  const [x,y]=await Promise.all([crypto.subtle.digest('SHA-256',left),crypto.subtle.digest('SHA-256',right)]);
- return new Uint8Array(x).every((v,i)=>v===new Uint8Array(y)[i]);
+ const aHash=new Uint8Array(x),bHash=new Uint8Array(y);
+ let difference=0;
+ for(let i=0;i<aHash.length;i++)difference|=aHash[i]^bHash[i];
+ return difference===0;
+}
+// Bound actual streamed bytes: Content-Length may be missing or untrusted.
+async function readPayload(request){
+ const reader=request.body?.getReader();
+ if(!reader)throw new Error('Invalid JSON');
+ const chunks=[];let size=0;
+ try{
+  while(true){
+   const {done,value}=await reader.read();
+   if(done)break;
+   size+=value.byteLength;
+   if(size>8192){await reader.cancel();throw new Error('Request too large')}
+   chunks.push(value);
+  }
+ }finally{reader.releaseLock()}
+ const bytes=new Uint8Array(size);let offset=0;
+ for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength}
+ return JSON.parse(new TextDecoder().decode(bytes));
 }
 export default {
  async fetch(request,env){
@@ -23,13 +44,17 @@ export default {
   if(origin!==ALLOWED_ORIGIN)return respond({error:'Origin not allowed'},403,origin);
   if(request.method==='OPTIONS')return new Response(null,{status:204,headers:cors(origin)});
   if(request.method!=='POST')return respond({error:'Method not allowed'},405,origin);
-  if(!(env.DASHSCOPE_API_KEY||env.OPENAI_API_KEY)||!env.APP_ACCESS_TOKEN)return respond({error:'Server not configured'},503,origin);
+  if(!env.DASHSCOPE_API_KEY||!env.APP_ACCESS_TOKEN||!env.AI_RATE_LIMITER)return respond({error:'服务端尚未配置完成'},503,origin);
+  const model=env.QWEN_MODEL||'qwen3.8-flash';
+  // Fail closed rather than route to a region/provider outside the confirmed quota.
+  if((env.QWEN_REGION||'beijing')!=='beijing'||!['qwen3.8-flash','qwen3.7-flash'].includes(model))return respond({error:'请配置北京地域及已确认额度的 Flash 模型'},503,origin);
   const access=request.headers.get('Authorization')?.replace(/^Bearer\s+/i,'')||'';
-  if(!access||!await constantTimeEqual(access,env.APP_ACCESS_TOKEN))return respond({error:'Access token invalid'},401,origin);
+  if(!access||access.length>512||!await constantTimeEqual(access,env.APP_ACCESS_TOKEN))return respond({error:'Access token invalid'},401,origin);
+  if((request.headers.get('Content-Type')||'').split(';')[0].trim().toLowerCase()!=='application/json')return respond({error:'Content-Type must be application/json'},415,origin);
   const size=Number(request.headers.get('Content-Length')||0);
   if(size>8192)return respond({error:'Request too large'},413,origin);
   let payload;
-  try{payload=await request.json()}catch{return respond({error:'Invalid JSON'},400,origin)}
+  try{payload=await readPayload(request)}catch(e){return respond({error:e.message==='Request too large'?'Request too large':'Invalid JSON'},e.message==='Request too large'?413:400,origin)}
   const text=typeof payload?.text==='string'?payload.text.trim():'';
   if(!text||text.length>1200)return respond({error:'Text must be 1–1200 characters'},400,origin);
   const mode=payload?.mode==='detailed'?'detailed':'quick';
@@ -39,30 +64,21 @@ export default {
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),25000);
   try{
-   const useQwen=!!env.DASHSCOPE_API_KEY;
-   // Fixed allowlisted regional endpoints prevent the browser from choosing arbitrary upstream hosts.
-   const qwenRegion=env.QWEN_REGION==='singapore'?'singapore':'beijing';
-   const qwenUrl=qwenRegion==='singapore'
-    ?'https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions'
-    :'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
-   const providerUrl=useQwen?qwenUrl:'https://api.openai.com/v1/responses';
-   const providerKey=useQwen?env.DASHSCOPE_API_KEY:env.OPENAI_API_KEY;
-   const model=useQwen?(env.QWEN_MODEL||'qwen-turbo'):(env.OPENAI_MODEL||'gpt-4.1-mini');
-   const requestBody=useQwen
-    ?{model,messages:[{role:'system',content:prompt},{role:'user',content:text}],max_tokens:mode==='detailed'?600:360,temperature:0.3}
-    :{model,instructions:prompt,input:text,max_output_tokens:mode==='detailed'?500:280,store:false};
+   const limit=await env.AI_RATE_LIMITER.limit({key:'design-listening-lab-explain'});
+   if(!limit.success)return respond({error:'请求过于频繁，请稍后再试'},429,origin);
+   const providerUrl='https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
+   const requestBody={model,messages:[{role:'system',content:prompt},{role:'user',content:text}],max_tokens:mode==='detailed'?600:360,temperature:0.3,enable_thinking:false,stream:false};
    const ai=await fetch(providerUrl,{
-    method:'POST',signal:controller.signal,
-    headers:{'Authorization':'Bearer '+providerKey,'Content-Type':'application/json'},
+    method:'POST',signal:controller.signal,redirect:'error',
+    headers:{'Authorization':'Bearer '+env.DASHSCOPE_API_KEY,'Content-Type':'application/json'},
     body:JSON.stringify(requestBody)
    });
    const data=await ai.json().catch(()=>({}));
-   if(!ai.ok)return respond({error:ai.status===429?'模型额度不足或调用频率受限':'AI 服务调用失败，请检查区域、模型权限和额度',code:ai.status},502,origin);
-   const answer=useQwen
-    ?(data.choices?.[0]?.message?.content||'').trim()
-    :(data.output||[]).flatMap(item=>item.content||[]).filter(part=>part.type==='output_text'&&typeof part.text==='string').map(part=>part.text).join('\n').trim();
+   if(!ai.ok)return respond({error:[402,403,429].includes(ai.status)?'模型额度、权限或频率受限；请在百炼检查，服务不会自动切换模型':'AI 服务调用失败，请检查北京地域密钥和模型设置',code:ai.status},502,origin);
+   const content=data?.choices?.[0]?.message?.content;
+   const answer=typeof content==='string'?content.trim():'';
    if(!answer)return respond({error:'AI 没有返回文字，请检查模型设置'},502,origin);
-   return respond({answer,model:data.model||model,provider:useQwen?'qwen':'openai'},200,origin);
+   return respond({answer,model:data.model||model,provider:'qwen'},200,origin);
   }catch(e){return respond({error:e?.name==='AbortError'?'AI request timed out':'AI request failed'},504,origin)}
   finally{clearTimeout(timeout)}
  }
