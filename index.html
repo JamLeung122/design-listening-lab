@@ -8,7 +8,7 @@
   <title>Design Listening Lab</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="listening-lab-release" content="4.4">
+  <meta name="listening-lab-release" content="4.5">
   <!-- Keep layout with the HTML so Safari can render it even when asset caches disagree. -->
   <style>
 :root {
@@ -303,4 +303,432 @@ body:has(.modal.open) { overflow: hidden; }
 <div class="modal" id="importModal"><div class="dialog"><h2>导入英文原文</h2><p class="help">支持 TXT、SRT、VTT 文件或粘贴文字。每个空行划分一段。请使用你有权使用的字幕或自行整理的原文。示例是原创教学文字，不是节目字幕。</p><input type="file" id="subtitleFile" accept=".txt,.srt,.vtt,text/plain"><textarea id="sourceText" placeholder="粘贴英文原文，段落之间空一行"></textarea><div class="row"><button id="doImport" class="primary">导入</button><button data-close="importModal">取消</button></div></div></div>
 <div class="modal" id="onlineSettingsModal"><div class="dialog"><h2>在线 AI · 安全连接</h2><p class="help">网页只保存你的代理服务地址。访问口令仅保存在当前打开的页面内存中，刷新后需要重新输入。不要在这里输入百炼或 OpenAI API Key：百炼或 OpenAI 的 API Key 必须存放在服务器密钥中。</p><label class="help" for="onlineEndpoint">Qwen AI 服务地址（Cloudflare Worker，以 /explain 结尾）</label><input id="onlineEndpoint" type="url" inputmode="url" placeholder="https://your-worker.workers.dev/explain" autocomplete="off"><label class="help" for="onlineToken">应用访问口令（不是百炼或 OpenAI API Key）</label><input id="onlineToken" type="password" placeholder="在 Worker 中设置的 APP_ACCESS_TOKEN" autocomplete="off"><div class="row" style="margin-top:12px"><button id="saveOnlineSettings" class="primary">保存当前连接</button><button data-close="onlineSettingsModal">关闭</button></div><p id="onlineConfigStatus" class="help" role="status">未配置。离线功能保持可用。</p></div></div>
 <div class="modal" id="aiModal"><div class="dialog"><h2>本地 AI · 安装与状态</h2><p class="help">使用 WebLLM 在浏览器设备端推理。首次需要联网下载模型及运行组件；WebLLM 的远程运行组件可能无法离线重新初始化；请以飞行模式实测为准。不会自动上传你的听写或原文。你已在 Noema 安装的模型无法直接从 Safari 调用；建议使用「复制到 Noema」。</p><div id="gpuStatus" class="pill">检测中</div><p class="help">浏览器模型测试是可选功能。先选更小的 SmolLM2 360M（约 380MB），只用于验证下载与推理；英语解释质量可能不及 Noema 的 Qwen3 1.7B，且相同网络问题仍可能发生。</p><label class="help" for="modelChoice">浏览器模型 <select id="modelChoice"><option value="SmolLM2-360M-Instruct-q4f16_1-MLC" selected>SmolLM2 360M · 约380MB（测试优先）</option><option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen2.5 0.5B · 约950MB（原方案）</option></select></label><p id="modelInfo" class="help"></p><div class="row"><button class="primary" id="installAI">下载并加载所选模型</button><button id="testAI">测试离线解释</button><button data-close="aiModal">关闭</button></div><p id="aiStatus" class="help">尚未安装。</p><hr style="border:0;border-top:1px solid #394a63;margin:18px 0"><h3>网络与缓存诊断</h3><p class="help">检测模型配置与首个参数分片的 HTTP Range 响应，并检查浏览器缓存。分片总数随模型版本变化，诊断不会下载完整模型。</p><button id="diagBtn">检测模型连接与缓存</button><pre id="diagLog" aria-live="polite">尚未检测</pre><p class="help">如果卡在 0%，请截图诊断日志，不要反复下载。</p></div></div>
-<script type="module" src="app.js"></script><script type="module" src="diagnostics.js"></script></body></html>
+<noscript><p>此页面需要启用 Safari 的 JavaScript 才能选词、听写和保存笔迹。</p></noscript>
+<!-- Core controls ship with the HTML to keep offline updates atomic. -->
+<script id="listening-lab-app">
+(function(){
+'use strict';
+try{
+const $=id=>document.getElementById(id);
+
+function readStoredArray(key, isValid){
+ try{
+  const value=JSON.parse(localStorage.getItem(key));
+  return Array.isArray(value)&&value.every(isValid)?value:null;
+ }catch{return null}
+}
+
+const savedTranscript=readStoredArray('dll_paras',item=>typeof item==='string');
+const exampleTranscript=[
+'An illustrator can begin with something ordinary and discover a surprising visual idea. The challenge is not only to draw an object, but to notice a relationship that other people may overlook.',
+'Visual communication becomes stronger when a complex idea is reduced to a clear form. A simple image can invite the viewer to make a connection and complete the meaning.',
+'Experimentation is part of the creative process. Sketching several possibilities can reveal a direction that was not obvious at the beginning.'
+];
+let paras=savedTranscript?.length?savedTranscript:exampleTranscript;
+let hidden=new Set(savedTranscript?.length?paras.map((_,i)=>i):[]),selection='',engine=null,modelName='',aiLoading=false,strokes=[],current=null,pen='#1d2939',erase=false,ctx,canvas,db;
+// User-controlled transcript size; persists across offline PWA relaunches.
+const fontSizeControl=$('fontSize');
+function applyTranscriptFont(value){
+ const font=Math.min(26,Math.max(18,Number(value)||22));
+ document.documentElement.style.setProperty('--transcript-size',font+'px');
+ fontSizeControl.value=String(font);
+ try{localStorage.setItem('dll_font_size',String(font))}catch{}
+}
+try{applyTranscriptFont(localStorage.getItem('dll_font_size')||'22')}catch{applyTranscriptFont('22')}
+fontSizeControl.addEventListener('change',()=>applyTranscriptFont(fontSizeControl.value));
+const dictionary={illustrator:'插画师',ordinary:'普通的；日常的',visual:'视觉的',idea:'想法；概念',challenge:'挑战',relationship:'关系；关联',communication:'传达；沟通',complex:'复杂的',reduced:'简化；提炼',viewer:'观看者',connection:'联系；联想',experimentation:'实验性探索',creative:'创意的',process:'过程',sketching:'草图绘制',possibilities:'多种可能性',direction:'方向',obvious:'明显的'};
+// Mode-driven selection: tap a word or a full sentence; long-press to select any phrase in Safari.
+let selectionMode='word',rangeSelectedAt=0;
+function selectedTranscriptText(){
+ const sel=window.getSelection();
+ if(!sel || sel.isCollapsed || !sel.rangeCount)return '';
+ const range=sel.getRangeAt(0),host=$('paragraphs');
+ if(!host.contains(range.commonAncestorContainer))return '';
+ return sel.toString().replace(/\s+/g,' ').trim();
+}
+function render(){
+ const host=$('paragraphs');host.replaceChildren();
+ paras.forEach((p,i)=>{
+  const el=document.createElement('article');el.className='para';
+  const head=document.createElement('div');head.className='meta';
+  const name=document.createElement('span');name.textContent='第 '+(i+1)+' 段';
+  const btn=document.createElement('button');btn.textContent=hidden.has(i)?'显示原文':'隐藏原文';
+  btn.onclick=()=>{hidden.has(i)?hidden.delete(i):hidden.add(i);render()};
+  head.append(name,btn);el.append(head);
+  const body=document.createElement('div');body.className='body';
+  if(hidden.has(i)){body.classList.add('hiddenText');body.textContent='原文已隐藏 · 先听写再揭晓'}
+  else {
+   // Preserve spaces and punctuation while creating sentence and word targets.
+   const sentences=p.match(/[^.!?]+(?:[.!?]+(?=\s|$)|$)/g)||[p];
+   for(const sentence of sentences){
+    const sentenceSpan=document.createElement('span');sentenceSpan.className='sentence';
+    sentenceSpan.title='切换至整句模式后点击选取这句话';
+    sentenceSpan.addEventListener('click',()=>{
+     if(selectionMode==='sentence' && !selectedTranscriptText() && Date.now()-rangeSelectedAt>700)select(sentence.trim());
+    });
+    sentence.split(/(\b[A-Za-z][A-Za-z'-]*\b)/g).forEach(token=>{
+     if(/^[A-Za-z]/.test(token)){
+      const word=document.createElement('span');word.className='word';word.textContent=token;
+      word.addEventListener('click',()=>{
+       if(selectionMode==='word' && !selectedTranscriptText() && Date.now()-rangeSelectedAt>700)select(token);
+      });sentenceSpan.append(word);
+     }else sentenceSpan.append(document.createTextNode(token));
+    });
+    body.append(sentenceSpan);
+   }
+  }
+  el.append(body);host.append(el);
+ });
+ host.classList.toggle('sentence-mode',selectionMode==='sentence');
+ $('modeBtn').textContent=selectionMode==='word'?'选择：单词':'选择：整句';
+ $('modeBtn').setAttribute('aria-pressed',String(selectionMode==='sentence'));
+}
+function select(s){
+ selection=s.replace(/\s+/g,' ').trim();
+ if(!selection)return;
+ $('selected').textContent='选中：'+selection;
+ $('aiOutput').textContent='选择在线 AI 或基础释义。也可在「更多」中复制到 Noema。';
+}
+render();
+$('modeBtn').onclick=()=>{selectionMode=selectionMode==='word'?'sentence':'word';render()};
+$('hideAll').onclick=()=>{hidden=new Set(paras.map((_,i)=>i));render()};
+$('showAll').onclick=()=>{hidden.clear();render()};
+document.addEventListener('selectionchange',()=>{
+ const text=selectedTranscriptText();
+ if(text){rangeSelectedAt=Date.now();select(text)}
+});
+$('selectionBtn').onclick=()=>{
+ const text=selectedTranscriptText()||selection;
+ if(text)select(text);
+ else $('aiOutput').textContent='请在原文中长按并拖动选区，或切换「选择：整句」后点一句话。';
+};$('explainBtn').onclick=()=>explain();$('savePhrase').onclick=()=>{if(!selection)return;let a=(readStoredArray('dll_phrases',item=>item&&typeof item.text==='string')||[]);a.push({text:selection,created:new Date().toISOString()});try{localStorage.setItem('dll_phrases',JSON.stringify(a))}catch{
+ $('aiOutput').textContent='浏览器暂时无法保存收藏。';return;
+ }$('studyInfo').textContent='已收藏：'+selection;scheduleSave()};
+// Short prompt for fast learning; detailed prompt remains available.
+function currentEnglish(){return selectedTranscriptText()||selection}
+function makeNoemaPrompt(text,detailed=false){
+ if(!detailed)return [
+  '请作为中英双语艺术与设计英语老师，解释以下英文。',
+  '简洁回答：①中文含义 ②简明英文改写 ③关键词或搭配 ④一个设计或艺术相关英语例句。',
+  '如果有歧义，说明常见用法。不编造来源。',
+  '英文：'+text
+ ].join('\n');
+ return [
+  '你是我的中英双语英语学习助手，重点关注插画、数字艺术、视觉传达与汽车座舱 HMI。',
+  '请基于下面这一段英文，简短说明：',
+  '1. 中文自然释义和简洁英文改写；',
+  '2. 最多三个重要单词或常用搭配；',
+  '3. 必要时解释语法、语气及用法；',
+  '4. 一个设计或艺术相关英语例句；',
+  '5. 一个简短复习问题。',
+  '不要编造纪录片出处。',
+  '英文：'+text
+ ].join('\n');
+}
+function handoffText(){
+ const text=currentEnglish();
+ if(!text){$('aiOutput').textContent='请先显示原文，并点击单词、整句或长按拖选短语。';return null}
+ return text;
+}
+async function copyForNoema(detailed){
+ const text=handoffText();if(!text)return;
+ const prompt=makeNoemaPrompt(text,detailed);
+ try{
+  await navigator.clipboard.writeText(prompt);
+  $('aiOutput').textContent=(detailed?'详细':'精简')+'学习提示词已复制：'+text+'\n切换到 Noema 粘贴发送即可。';
+ }catch{
+  $('aiOutput').textContent='复制失败；请从下方手动复制：\n'+prompt;
+ }
+}
+$('copyQuick').onclick=()=>copyForNoema(false);
+$('copyNoema').onclick=()=>copyForNoema(true);
+
+
+// Online AI is optional and only sends explicitly selected English text when tapped.
+// Never put a provider API key in client code or send one from the browser.
+let onlineAccessToken='';
+let onlineEndpoint='';
+try{onlineEndpoint=localStorage.getItem('dll_online_endpoint')||''}catch{}
+$('onlineEndpoint').value=onlineEndpoint;
+$('onlineSettingsBtn').onclick=()=>{
+ $('onlineEndpoint').value=onlineEndpoint;
+ $('onlineToken').value=onlineAccessToken;
+ $('onlineConfigStatus').textContent='只有你主动点击「在线 AI 解释」时才发送选中的英文。';
+ openModal('onlineSettingsModal');
+};
+$('saveOnlineSettings').onclick=()=>{
+ const value=$('onlineEndpoint').value.trim();
+ let url;
+ try{
+  url=new URL(value);
+  if(url.protocol!=='https:' || url.pathname!=='/explain' || url.username || url.password || url.search || url.hash)throw Error('invalid');
+ }catch{$('onlineConfigStatus').textContent='请输入 HTTPS 地址，并确保路径以 /explain 结尾。';return}
+ const token=$('onlineToken').value.trim();
+ if(token.startsWith('sk-')){$('onlineConfigStatus').textContent='这里需要独立的应用访问口令，请勿输入百炼或 OpenAI API Key。';return}
+ if(!token){$('onlineConfigStatus').textContent='请输入 APP_ACCESS_TOKEN 访问口令（不是百炼 API Key）。';return}
+ onlineEndpoint=url.href;
+ onlineAccessToken=token;
+ try{localStorage.setItem('dll_online_endpoint',onlineEndpoint)}catch{}
+ $('onlineConfigStatus').textContent='连接设置已保存在当前页面。现在选择英文并点击「在线 AI 解释」。';
+};
+let onlineExplaining=false;
+$('onlineExplainBtn').onclick=async()=>{
+ const text=(selectedTranscriptText()||selection).trim();
+ if(!text){$('aiOutput').textContent='请先选中一个英文单词、短语或句子。';return}
+ if(text.length>1200){$('aiOutput').textContent='一次最多解释 1200 个字符，请缩短选区。';return}
+ if(!navigator.onLine){$('aiOutput').textContent='当前离线。请使用「基础释义」或复制到 Noema。';return}
+ if(!onlineEndpoint||!onlineAccessToken){
+  $('aiOutput').textContent='在线 AI 尚未连接。请在「设置」中连接在线 AI。';
+  openModal('onlineSettingsModal');return;
+ }
+ if(onlineExplaining)return;
+ onlineExplaining=true;
+ $('onlineExplainBtn').disabled=true;
+ $('aiOutput').textContent='正在在线解释：'+text;
+ const controller=new AbortController();
+ const timer=setTimeout(()=>controller.abort(),30000);
+ try{
+  const response=await fetch(onlineEndpoint,{
+   method:'POST',
+   mode:'cors',cache:'no-store',credentials:'omit',redirect:'error',
+   headers:{'Content-Type':'application/json','Authorization':'Bearer '+onlineAccessToken},
+   body:JSON.stringify({text,mode:'quick'}),
+   signal:controller.signal
+  });
+  const data=await response.json();
+  if(!response.ok)throw Error(data.error||'HTTP '+response.status);
+  if(typeof data.answer!=='string')throw Error('响应中缺少解释文字');
+  renderOnlineAnswer(data.answer);
+ }catch(e){
+  $('aiOutput').textContent='在线解释未成功：'+(e.name==='AbortError'?'连接超时':e.message||String(e))+'。你的原文与手写不会受到影响。';
+ }finally{clearTimeout(timer);onlineExplaining=false;$('onlineExplainBtn').disabled=false}
+};
+
+// Render emphasis without interpreting model output as HTML.
+function renderOnlineAnswer(answer){
+ const output=$('aiOutput');
+ const parts=answer.split(/(\*\*[^*\n]+\*\*)/);
+ const formatted=parts.map(part=>{
+  if(!part.startsWith('**')||!part.endsWith('**')||part.length<5)return document.createTextNode(part);
+  const strong=document.createElement('strong');
+  strong.textContent=part.slice(2,-2);
+  return strong;
+ });
+ output.replaceChildren(...formatted);
+ output.scrollTop=0;
+}
+
+async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个设计或艺术相关的原创英语例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」不在内置基础词库。点击「复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
+const pageRegions=document.querySelectorAll('body > header, body > main');
+let activeModal=null;
+let modalTrigger=null;
+
+function openModal(id){
+ if(activeModal){
+  activeModal.classList.remove('open');
+ }else{
+  modalTrigger=document.activeElement;
+  pageRegions.forEach(region=>{region.inert=true});
+ }
+ activeModal=$(id);
+ activeModal.classList.add('open');
+ activeModal.querySelector('.dialog').focus();
+}
+
+function closeModal(id){
+ if(activeModal?.id!==id)return;
+ activeModal.classList.remove('open');
+ activeModal=null;
+ pageRegions.forEach(region=>{region.inert=false});
+ modalTrigger?.focus();
+ modalTrigger=null;
+}
+
+document.querySelectorAll('[data-open]').forEach(button=>{
+ button.addEventListener('click',()=>openModal(button.dataset.open));
+});
+document.querySelectorAll('[data-close]').forEach(button=>{
+ button.addEventListener('click',()=>closeModal(button.dataset.close));
+});
+document.querySelectorAll('.modal').forEach(modal=>{
+ const dialog=modal.querySelector('.dialog');
+ dialog.tabIndex=-1;
+ dialog.setAttribute('role','dialog');
+ dialog.setAttribute('aria-modal','true');
+ const heading=dialog.querySelector('h2');
+ if(!heading.id)heading.id=modal.id+'Title';
+ dialog.setAttribute('aria-labelledby',heading.id);
+ modal.addEventListener('click',event=>{if(event.target===modal)closeModal(modal.id)});
+});
+document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&activeModal)closeModal(activeModal.id);
+});
+$('importBtn').onclick=()=>openModal('importModal');$('aiBtn').onclick=()=>{openModal('aiModal');checkGPU()};$('subtitleFile').onchange=async e=>{$('sourceText').value=await e.target.files[0].text()};function normalize(t){return t.replace(/^WEBVTT.*$/gm,'').replace(/^\d+\s*$/gm,'').replace(/^\d\d:\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/^\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/<[^>]+>/g,'').split(/\n\s*\n/).map(s=>s.trim().replace(/\n/g,' ')).filter(Boolean)}$('doImport').onclick=()=>{let t=$('sourceText').value.trim();if(!t)return;paras=normalize(t);hidden=new Set(paras.map((_,i)=>i));let persisted=true;
+try{localStorage.setItem('dll_paras',JSON.stringify(paras))}catch{persisted=false}
+render();scheduleSave();closeModal('importModal');
+if(!persisted)$('aiOutput').textContent='原文已导入当前页面，可以在「笔记工具」中备份。';};
+const audio=$('audio');let audioURL=null,a=null,b=null,loop=false;$('audioFile').onchange=e=>{const file=e.target.files[0];if(!file)return;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(file);audio.src=audioURL;a=b=null;loop=false;$('setA').textContent='设 A 点';$('setB').textContent='设 B 点';$('loop').textContent='循环：关'};$('speed').onchange=e=>audio.playbackRate=+e.target.value;$('back').onclick=()=>audio.currentTime=Math.max(0,audio.currentTime-5);$('setA').onclick=()=>{a=audio.currentTime;$('setA').textContent='A '+a.toFixed(1)};$('setB').onclick=()=>{b=audio.currentTime;$('setB').textContent='B '+b.toFixed(1)};$('loop').onclick=()=>{loop=!loop;$('loop').textContent='循环:'+(loop?'开':'关')};audio.ontimeupdate=()=>{if(loop&&a!==null&&b!==null&&b>a&&audio.currentTime>=b)audio.currentTime=a};
+canvas=$('ink');ctx=canvas.getContext('2d');function resize(){let rect=$('paper').getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);redraw()}function redraw(){let w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.fillStyle='#f8f9f4';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#d9e0dc';ctx.lineWidth=1;for(let y=35;y<h;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}for(let s of strokes){ctx.strokeStyle=s.erase?'#f8f9f4':s.color;ctx.lineWidth=s.erase?18:2.5;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();s.points.forEach(([x,y],i)=>i?ctx.lineTo(x*w,y*h):ctx.moveTo(x*w,y*h));ctx.stroke()}}function pos(e){let r=canvas.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]}canvas.onpointerdown=e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);current={color:pen,erase,points:[pos(e)]};strokes.push(current);redraw()};canvas.onpointermove=e=>{if(!current)return;current.points.push(pos(e));redraw()};canvas.onpointerup=()=>{current=null;hasEditedInk=true;scheduleSave()};canvas.onpointercancel=()=>{current=null;hasEditedInk=true;scheduleSave()};if(typeof ResizeObserver==='function'){
+ new ResizeObserver(resize).observe($('paper'));
+}else{
+ window.addEventListener('resize',resize);
+ resize();
+}
+const inkColors=document.querySelectorAll('[data-color]');
+function setInkTool(erasing){
+ erase=erasing;
+ $('penBtn').setAttribute('aria-pressed',String(!erase));
+ $('eraserBtn').setAttribute('aria-pressed',String(erase));
+ inkColors.forEach(button=>button.setAttribute('aria-pressed',String(!erase&&button.dataset.color===pen)));
+}
+inkColors.forEach(button=>button.onclick=()=>{pen=button.dataset.color;setInkTool(false)});
+$('penBtn').onclick=()=>setInkTool(false);
+$('eraserBtn').onclick=()=>setInkTool(true);
+$('undoBtn').onclick=()=>{strokes.pop();redraw();hasEditedInk=true;scheduleSave()};$('clearBtn').onclick=()=>{if(confirm('确定清空手写区域？')){strokes=[];redraw();hasEditedInk=true;scheduleSave()}};
+function download(filename,blob){let url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}$('pngBtn').onclick=()=>canvas.toBlob(blob=>download('dictation.png',blob),'image/png');function backup(){return {version:4,paras,strokes,phrases:(readStoredArray('dll_phrases',item=>item&&typeof item.text==='string')||[]),created:new Date().toISOString()}}$('jsonBtn').onclick=()=>download('design-listening-lab-backup.json',new Blob([JSON.stringify(backup(),null,2)],{type:'application/json'}));
+function openDB(){return new Promise((resolve,reject)=>{let r=indexedDB.open('design-listening-lab',1);r.onupgradeneeded=()=>r.result.createObjectStore('notes');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}let saveTimer=null,hasEditedInk=false;
+async function save(){try{db=db||await openDB();await new Promise((resolve,reject)=>{const tx=db.transaction('notes','readwrite');tx.objectStore('notes').put(backup(),'latest');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('transaction aborted'));});$('studyInfo').textContent='已保存笔迹和学习数据 · 建议定期导出 JSON'}catch(e){$('studyInfo').textContent='保存失败，请导出 JSON：'+e.message}}
+function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(save,700)}
+$('saveBtn').onclick=save;async function restore(){try{db=await openDB();let tx=db.transaction('notes');let req=tx.objectStore('notes').get('latest');req.onsuccess=()=>{if(req.result?.strokes&&!hasEditedInk){strokes=req.result.strokes;redraw()}}}catch{}}setTimeout(restore,300);document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(saveTimer);void save()}});
+
+// Toggle handwriting without discarding strokes; keep the same audio element in reading mode.
+const viewToggle=$('viewToggle'), layout=document.querySelector('.layout');
+const audioPlayer=document.querySelector('#handwritingPane .player');
+const audioParent=audioPlayer.parentElement, audioNext=audioPlayer.nextSibling;
+function setReadingMode(reading){
+ if(reading===layout.classList.contains('reading-mode'))return;
+ if(reading){
+  $('readingAudioDock').append(audioPlayer);
+ }else{
+  audioParent.insertBefore(audioPlayer,audioNext);
+ }
+ layout.classList.toggle('reading-mode',reading);
+ if(!reading&&typeof ResizeObserver!=='function')resize();
+ viewToggle.setAttribute('aria-pressed',String(reading));
+ viewToggle.textContent=reading?'返回听写':'阅读模式';
+ // Canvas resize is observed and normalized strokes remain available on reopening.
+ try{localStorage.setItem('dll_reading_mode',reading?'1':'0')}catch{}
+}
+viewToggle.addEventListener('click',()=>setReadingMode(!layout.classList.contains('reading-mode')));
+try{if(localStorage.getItem('dll_reading_mode')==='1')setReadingMode(true)}catch{}
+
+async function checkGPU(){let ok=!!navigator.gpu;$('gpuStatus').textContent=ok?'检测到 WebGPU 接口（尚需实际模型验证）':'未检测到 WebGPU：此浏览器无法运行当前本地模型方案';$('modelInfo').textContent='3.1 诊断版：分阶段检测运行组件、模型下载与 GPU 初始化。首次安装需联网。';$('installAI').disabled=!ok}
+function aiReport(stage,message){$('aiStatus').textContent='【'+stage+'】 '+message;console.info('[ListeningLab AI]',stage,message)}
+async function loadWebLLM(){let urls=['https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.80/+esm','https://esm.run/@mlc-ai/web-llm@0.2.80'];let errors=[];for(let url of urls){try{aiReport('组件加载','尝试 '+new URL(url).hostname);let lib=await import(/* webpackIgnore: true */ url);if(typeof lib.CreateMLCEngine!=='function'||!lib.prebuiltAppConfig?.model_list?.length)throw Error('模块导出不完整');return lib}catch(e){errors.push(new URL(url).hostname+': '+(e?.message||String(e)))}}throw Error('两个组件地址均加载失败：'+errors.join('；'))}
+$('installAI').onclick=async()=>{
+ if(aiLoading)return;
+ aiLoading=true;
+ $('installAI').disabled=true;
+ try{
+  if(!navigator.onLine)throw Error('首次安装需要联网');
+  if(!navigator.gpu)throw Error('当前浏览器未提供 WebGPU');
+  const selected=$('modelChoice').value;
+  if(!['SmolLM2-360M-Instruct-q4f16_1-MLC','Qwen2.5-0.5B-Instruct-q4f16_1-MLC'].includes(selected))throw Error('未知模型选择');
+  const webllm=await loadWebLLM();
+  const available=webllm.prebuiltAppConfig.model_list.find(m=>m.model_id===selected);
+  if(!available)throw Error('当前 WebLLM 运行组件不包含所选模型：'+selected);
+  modelName=selected;
+  aiReport('模型下载 / GPU 初始化','正在准备 '+modelName+'；首次安装可能需要下载多个分片。');
+  const progressTimer={last:Date.now(),text:''};
+  let checkTimer=setInterval(()=>{
+   if(!aiLoading){clearInterval(checkTimer);return}
+   if(Date.now()-progressTimer.last>90000){
+    aiReport('提醒','模型进度超过 90 秒没有变化。可暂时停止尝试；请不要反复删除 Safari 缓存。');
+    progressTimer.last=Date.now();
+   }
+  },10000);
+  try{
+   engine=await webllm.CreateMLCEngine(modelName,{
+    initProgressCallback:p=>{
+     const percent=typeof p.progress==='number'?Math.round(p.progress*100)+'%':'进度未知';
+     const value=percent+' · '+(p.text||'正在加载');
+     if(value!==progressTimer.text){progressTimer.text=value;progressTimer.last=Date.now()}
+     aiReport('模型下载 / GPU 初始化',value);
+    }
+   });
+  }finally{clearInterval(checkTimer)}
+  aiReport('完成','模型已加载：'+modelName+'。请点击测试。离线重启是否可用仍需单独验证。');
+  $('testAI').disabled=false;
+ }catch(e){
+  aiReport('失败',(e?.message||String(e))+'。可以继续使用听写和 Noema；不需要重复下载原模型。');
+ }finally{aiLoading=false;$('installAI').disabled=!navigator.gpu}
+};
+$('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加载模型';return}selection='visual language';closeModal('aiModal');await explain()};async function net(){
+ let ready=false;
+ try{
+  if('caches'in window){
+   const cache=await caches.open('design-listening-lab-v4.5');
+   const core=['./index.html','./manifest.webmanifest','./icon.svg'];
+   ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
+  }
+ }catch{}
+ $('network').textContent=(navigator.onLine?'在线':'离线')+' · '+(ready?'网页已缓存':'等待离线缓存');
+}
+void net();
+window.addEventListener('online',net);
+window.addEventListener('offline',net);
+if('serviceWorker'in navigator){
+ navigator.serviceWorker.addEventListener('controllerchange',net);
+ navigator.serviceWorker.register('./sw.js').then(()=>setTimeout(net,600)).catch(e=>{console.warn(e);net()});
+}else net();
+
+}catch(error){
+ document.getElementById('network').textContent='页面启动失败';
+ document.getElementById('aiOutput').textContent='请在联网时重新打开此页，或记录错误后联系我们。';
+ console.error('Listening Lab initialization failed',error);
+}
+})();
+</script>
+<script id="listening-lab-diagnostics">
+(function(){
+'use strict';
+// Design Listening Lab 3.4: bounded, honest network/cache diagnostics.
+const d=id=>document.getElementById(id);
+const log=s=>{const el=d('diagLog');if(el){el.textContent+=(el.textContent?'\n':'')+s;el.scrollTop=el.scrollHeight}};
+const base='https://huggingface.co/mlc-ai/Qwen2.5-0.5B-Instruct-q4f16_1-MLC/resolve/main/';
+async function probe(url,label,timeout=12000){
+ const controller=new AbortController(),start=performance.now();
+ const timer=setTimeout(()=>controller.abort(),timeout);
+ try{
+  const response=await fetch(url,{method:'GET',mode:'cors',cache:'no-store',headers:{Range:'bytes=0-1023'},signal:controller.signal});
+  const status=response.status,range=response.headers.get('content-range');
+  if(!response.ok)throw Error('HTTP '+status);
+  // Some CDN assets legitimately return 200; never read an unbounded response.
+  if(status!==206){await response.body?.cancel();log(label+': HTTP '+status+'（不支持 Range；已取消响应，未下载完整文件）');return false}
+  const reader=response.body?.getReader();if(reader){await reader.read();await reader.cancel()}
+  log(label+': HTTP 206 ✓ '+Math.round(performance.now()-start)+'ms'+(range?' · '+range:''));
+  return true;
+ }catch(e){log(label+': 失败 · '+(e.name==='AbortError'?'超时或被取消':e.message||String(e)));return false}
+ finally{clearTimeout(timer);controller.abort()}
+}
+async function diagnose(){
+ const button=d('diagBtn');if(!button)return;button.disabled=true;d('diagLog').textContent='';
+ try{
+  log('3.4 模型网络诊断（每个请求最多读取少量数据）');
+  log('网络状态 '+(navigator.onLine?'在线':'离线')+' · WebGPU '+!!navigator.gpu+' · SW 控制 '+!!navigator.serviceWorker?.controller);
+  if(navigator.storage?.estimate){try{const e=await navigator.storage.estimate();const mb=n=>n==null?'未知':(n/1048576).toFixed(0)+' MB';log('浏览器存储：已用 '+mb(e.usage)+' · 配额估计 '+mb(e.quota))}catch(e){log('存储估算不可用：'+e.message)}}
+  if('caches'in window){try{const names=await caches.keys();log('Cache Storage：'+(names.length?names.join(', '):'无缓存'))}catch(e){log('缓存查询失败：'+e.message)}}
+  if(!navigator.onLine){log('离线状态：跳过远程探测；已缓存模型仍可能可用。');return}
+  await probe(base+'mlc-chat-config.json','模型配置');
+  // Only check a known first shard. The number of shards varies by model/version.
+  await probe(base+'params_shard_0.bin','首个模型参数分片');
+  log('诊断说明：首个分片连通不代表全部模型文件完整，也不代表 WebGPU 初始化成功。');
+  log('WebLLM 的 CDN 模块不由本站 Service Worker 缓存；离线首次启动可能失败。');
+ }finally{button.disabled=false}
+}
+d('diagBtn')?.addEventListener('click',diagnose);
+let lastText='',lastChange=0,watcher=null;
+d('installAI')?.addEventListener('click',()=>{
+ lastText='';lastChange=Date.now();clearInterval(watcher);
+ watcher=setInterval(()=>{
+  const t=d('aiStatus')?.textContent||'';
+  if(t!==lastText){lastText=t;lastChange=Date.now();return}
+  if(/完成|失败|已加载/.test(t)){clearInterval(watcher);return}
+  if(Date.now()-lastChange>60000){log('模型加载状态超过 60 秒未变化。请检查网络与缓存，不要立即清除网站数据。');clearInterval(watcher)}
+ },5000);
+},true);
+
+})();
+</script>
+</body>
+</html>

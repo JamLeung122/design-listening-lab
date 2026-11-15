@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import worker from '../backend/worker.js';
-const source=readFileSync(new URL('../app.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const online=source.slice(source.indexOf('// Online AI is optional'),source.indexOf('async function explain()'));
 function page({selected='visual language',connected=true}={}){
  const nodes={},stored=new Map(),calls=[];
@@ -56,4 +56,18 @@ test('frontend and worker contract round trip with simulated provider',async()=>
   p.context.fetch=(url,options)=>worker.fetch(new Request(url,{...options,headers:{...options.headers,Origin:'https://jamleung122.github.io'}}),{DASHSCOPE_API_KEY:'test-only',APP_ACCESS_TOKEN:'test-app-passphrase',AI_RATE_LIMITER:{limit:async()=>({success:true})}});
   await p.nodes.onlineExplainBtn.onclick();assert.equal(p.nodes.aiOutput.textContent,'视觉语言 — visual communication');
  }finally{globalThis.fetch=original}
+});
+
+test('missing, malformed or unavailable transcript storage can fall back to the sample',()=>{
+ const setup=source.slice(source.indexOf('function readStoredArray'),source.indexOf('// User-controlled transcript size'));
+ for(const getItem of [()=>null,()=>'{bad JSON',()=>JSON.stringify({text:'legacy'}),()=>{throw Error('Blocked')}]){
+  const context={localStorage:{getItem}};
+  vm.runInNewContext(setup,context);
+  assert.match(vm.runInNewContext('paras[0]',context),/An illustrator/);
+  assert.equal(vm.runInNewContext('hidden.size',context),0);
+ }
+ const context={localStorage:{getItem:()=>JSON.stringify(['My imported transcript.'])}};
+ vm.runInNewContext(setup,context);
+ assert.equal(vm.runInNewContext('paras[0]',context),'My imported transcript.');
+ assert.equal(vm.runInNewContext('hidden.size',context),1);
 });
