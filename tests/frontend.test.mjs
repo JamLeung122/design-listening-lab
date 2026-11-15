@@ -136,3 +136,47 @@ test('untimed ranges are contiguous and fill the imported recording',()=>{
  const data=JSON.parse(vm.runInContext("JSON.stringify(estimateRanges(['first','one two three'],20))",context));
  assert.deepEqual(data,[{start:0,end:5},{start:5,end:20}]);
 });
+
+
+test('trimmed estimates skip intro, credits, and gaps while keeping original time coordinates',()=>{
+ const context=lessonFunctions();
+ const data=JSON.parse(vm.runInContext(`
+  const window=trimWindows({start:10,end:45,skips:[{start:20,end:30},{start:25,end:35}]},60);
+  JSON.stringify({
+   window,
+   estimates:estimateRanges(['first','second'],60,window),
+   subtitle:clipRange(5,22,window),
+   excluded:clipRange(24,29,window)
+  })
+ `,context));
+ assert.deepEqual(data,{
+  window:[{start:10,end:20},{start:35,end:45}],
+  estimates:[{start:10,end:20},{start:35,end:45}],
+  subtitle:{start:10,end:20},excluded:null
+ });
+});
+
+test('trim rejects invalid and fully excluded ranges',()=>{
+ const context=lessonFunctions();
+ assert.equal(vm.runInContext("parseTrim('7','30','10–15',45).trim.skips[0].end",context),15);
+ for(const [start,end,skips] of [['15','10',''],['5','18','4–8'],['5','18','5–18']]){
+  context.input=[start,end,skips,45];
+  assert.equal(vm.runInContext("typeof parseTrim(...input).error",context),'string');
+ }
+});
+
+test('playback jumps a marked gap and stops at the segment end',()=>{
+ const logic=source.slice(source.indexOf('function enforcePlaybackBounds()'),source.indexOf('async function playSegment'));
+ const audio={paused:false,seeking:false,currentTime:21,playbackRate:1,pause(){this.paused=true}};
+ const context={audio,stopTimer:null,clearTimeout:()=>{},setTimeout:()=>{},rawAudioPreview:()=>false,
+  keptWindows:[{start:10,end:20},{start:30,end:45}],activeSegment:{start:10,end:38},audioTrim:true,loop:false,clipRange:()=>null,
+  stopSegment(){context.activeSegment=null}
+ };
+ vm.runInNewContext(logic+';enforcePlaybackBounds();',context);
+ assert.equal(audio.currentTime,30);
+ assert.equal(audio.paused,false);
+ audio.currentTime=38.1;
+ vm.runInNewContext(logic+';enforcePlaybackBounds();',context);
+ assert.equal(audio.currentTime,38);
+ assert.equal(audio.paused,true);
+});
