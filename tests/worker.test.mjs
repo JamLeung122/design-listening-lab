@@ -45,7 +45,7 @@ test('sends only selected text to Beijing, defaults to flash without thinking or
  assert.equal(result.status,200);assert.equal(result.headers.get('Cache-Control'),'no-store');
  const c=calls[0];assert.equal(c.url,'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions');
  assert.equal(c.body.model,'qwen3.8-flash');assert.equal(c.body.enable_thinking,false);assert.equal(c.body.stream,false);assert.equal(c.body.max_tokens,360);
- assert.equal(c.body.messages[1].content,'visual language');assert.equal(c.options.redirect,'error');
+ assert.equal(c.body.messages[1].content,'visual language');assert.equal(c.options.redirect,'manual');
  assert.equal(c.options.headers.Authorization,'Bearer test-provider-secret');
  const answer=await result.text();assert.ok(!answer.includes('secret'));assert.ok(!JSON.stringify(c.body).includes('private ignored'));
 });
@@ -75,4 +75,19 @@ test('network failure and timeout do not leak upstream diagnostics',async()=>{
  mock.method(globalThis,'clearTimeout',()=>{});
  mock.method(globalThis,'fetch',async(_url,{signal})=>{signal.throwIfAborted();throw new DOMException('cancelled','AbortError')});
  result=await worker.fetch(request(),env);assert.equal(result.status,504);assert.match((await result.json()).error,/timed out/);
+});
+
+test('invalid provider credentials and limiter errors stop before contacting Bailian',async()=>{
+ const calls=upstream();
+ const malformed=await worker.fetch(request(),{...env,DASHSCOPE_API_KEY:'北京 API Key'});
+ assert.equal(malformed.status,503);assert.match((await malformed.json()).error,/格式/);
+ const unavailable=await worker.fetch(request(),{...env,AI_RATE_LIMITER:{limit:async()=>{throw Error('internal')}}});
+ assert.equal(unavailable.status,503);assert.match((await unavailable.json()).error,/限流组件/);
+ assert.equal(calls.length,0);
+});
+test('provider redirects are reported without forwarding credentials',async()=>{
+ const calls=upstream(307);
+ const result=await worker.fetch(request(),env);
+ assert.equal(result.status,502);assert.match((await result.json()).error,/重定向/);
+ assert.equal(calls.length,1);assert.equal(calls[0].options.redirect,'manual');
 });

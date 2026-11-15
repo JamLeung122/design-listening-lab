@@ -61,25 +61,35 @@ export default {
   const prompt=mode==='detailed'?
     '请用简体中文解释选定英文：1中文含义，2 B1级简明英文改写，3最多3个搭配，4必要的语法与语境，5一个设计或艺术相关的原创英语例句，6一个简短复习问题。保持简洁，不要编造原文出处。':
     '请简洁解释选定英文：中文自然释义，简单英文改写，一至两个重点搭配，一个设计或艺术相关原创英语例句。请用简体中文为主，不编造原文出处。';
-  const controller=new AbortController();
-  const timeout=setTimeout(()=>controller.abort(),25000);
+  const providerKey=env.DASHSCOPE_API_KEY.trim();
+  if(!/^[!-~]+$/.test(providerKey)){
+   return respond({error:'百炼 API Key 格式不正确，请在 Cloudflare 核对密钥'},503,origin);
+  }
   try{
    const limit=await env.AI_RATE_LIMITER.limit({key:'design-listening-lab-explain'});
    if(!limit.success)return respond({error:'请求过于频繁，请稍后再试'},429,origin);
+  }catch{
+   return respond({error:'Cloudflare 限流组件暂不可用'},503,origin);
+  }
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),25000);
+  try{
    const providerUrl='https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
    const requestBody={model,messages:[{role:'system',content:prompt},{role:'user',content:text}],max_tokens:mode==='detailed'?600:360,temperature:0.3,enable_thinking:false,stream:false};
    const ai=await fetch(providerUrl,{
-    method:'POST',signal:controller.signal,redirect:'error',
-    headers:{'Authorization':'Bearer '+env.DASHSCOPE_API_KEY,'Content-Type':'application/json'},
+    method:'POST',signal:controller.signal,redirect:'manual',
+    headers:{'Authorization':'Bearer '+providerKey,'Content-Type':'application/json'},
     body:JSON.stringify(requestBody)
    });
+   if(ai.status>=300&&ai.status<400)return respond({error:'百炼地址要求重定向，请核对北京地域工作空间的专属地址'},502,origin);
+   if(ai.status===401)return respond({error:'百炼拒绝了 API Key，请在 Cloudflare 核对北京地域密钥'},502,origin);
    const data=await ai.json().catch(()=>({}));
    if(!ai.ok)return respond({error:[402,403,429].includes(ai.status)?'模型额度、权限或频率受限；请在百炼检查，服务不会自动切换模型':'AI 服务调用失败，请检查北京地域密钥和模型设置',code:ai.status},502,origin);
    const content=data?.choices?.[0]?.message?.content;
    const answer=typeof content==='string'?content.trim():'';
    if(!answer)return respond({error:'AI 没有返回文字，请检查模型设置'},502,origin);
    return respond({answer,model:data.model||model,provider:'qwen'},200,origin);
-  }catch(e){return respond({error:e?.name==='AbortError'?'AI request timed out':'AI request failed'},504,origin)}
+  }catch(e){return respond({error:controller.signal.aborted||e?.name==='AbortError'?'AI request timed out':'Cloudflare 无法连接百炼北京接口'},504,origin)}
   finally{clearTimeout(timeout)}
  }
 };
