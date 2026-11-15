@@ -97,3 +97,42 @@ test('collapsing an in-flight explanation preserves its result for reopening',as
  assert.equal(p.nodes.resultPanel.hidden,false);
  assert.equal(p.nodes.aiOutput.textContent,'视觉语言');
 });
+
+
+function lessonFunctions(){
+ const logic=source.slice(source.indexOf("const LESSON_KEY="),source.indexOf("const savedTranscript="));
+ const context=vm.createContext({});
+ vm.runInContext(logic,context);
+ return context;
+}
+
+test('plain transcripts break into numbered study-size segments without losing text',()=>{
+ const context=lessonFunctions();
+ const text='This is one sentence. This is another sentence. A third sentence begins. This is the fourth sentence.';
+ context.raw=text;
+ assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(importSegments(raw).map(s=>s.text))',context)),[
+  'This is one sentence. This is another sentence.','A third sentence begins. This is the fourth sentence.'
+ ]);
+ context.raw=Array.from({length:110},(_,i)=>'word'+i).join(' ');
+ assert.equal(vm.runInContext('importSegments(raw).length',context),3);
+ assert.equal(vm.runInContext("importSegments(raw).map(s=>s.text).join(' ')",context),context.raw);
+});
+
+test('SRT and WebVTT retain cue times and separate pauses in the source audio',()=>{
+ const context=lessonFunctions();
+ for(const raw of [
+  '1\r\n00:00:02,250 --> 00:00:04,000\r\n<i>First cue.</i>\r\n\r\n2\r\n00:00:04,100 --> 00:00:06,500\r\nSecond cue.\r\n\r\n3\r\n00:00:10,000 --> 00:00:12,000\r\nThird cue.',
+  'WEBVTT\n\n00:02.250 --> 00:04.000 align:start\nFirst cue.\n\n00:04.100 --> 00:06.500\nSecond cue.\n\n00:10.000 --> 00:12.000\nThird cue.'
+ ]){
+  context.raw=raw;
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(importSegments(raw))',context)),[
+   {text:'First cue. Second cue.',start:2.25,end:6.5},{text:'Third cue.',start:10,end:12}
+  ]);
+ }
+});
+
+test('untimed ranges are contiguous and fill the imported recording',()=>{
+ const context=lessonFunctions();
+ const data=JSON.parse(vm.runInContext("JSON.stringify(estimateRanges(['first','one two three'],20))",context));
+ assert.deepEqual(data,[{start:0,end:5},{start:5,end:20}]);
+});
