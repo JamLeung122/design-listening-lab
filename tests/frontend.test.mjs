@@ -4,12 +4,12 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import worker from '../backend/worker.js';
 const source=readFileSync(new URL('../index.html',import.meta.url),'utf8');
-const online=source.slice(source.indexOf('// Online AI is optional'),source.indexOf('async function explain()'));
+const online=source.slice(source.indexOf('function toggleResult(open)'),source.indexOf('async function explain()'));
 function page({selected='visual language',connected=true}={}){
  const nodes={},stored=new Map(),calls=[];
  const context={URL,AbortController,setTimeout,clearTimeout,Error,String,
   $:id=>nodes[id]??={
-   value:'',textContent:'',disabled:false,
+   value:'',textContent:'',disabled:false,hidden:true,dataset:{},setAttribute(){},scrollIntoView(){},focus(){},
    replaceChildren(...children){this.children=children;this.textContent=children.map(child=>child.textContent).join('')}
   },
   document:{createTextNode:textContent=>({textContent}),createElement:tagName=>({tagName,textContent:''})},
@@ -70,4 +70,30 @@ test('missing, malformed or unavailable transcript storage can fall back to the 
  vm.runInNewContext(setup,context);
  assert.equal(vm.runInNewContext('paras[0]',context),'My imported transcript.');
  assert.equal(vm.runInNewContext('hidden.size',context),1);
+});
+
+
+test('connection check omits credentials and submits no text to the Worker',async()=>{
+ const p=page();
+ p.nodes.onlineEndpoint.value='https://test.workers.dev/explain';
+ p.context.fetch=async(url,options)=>{p.calls.push({url,...options});return new Response(null,{status:405})};
+ await p.nodes.testOnlineConnection.onclick();
+ assert.equal(p.calls.length,1);
+ assert.equal(p.calls[0].credentials,'omit');
+ assert.equal(p.calls[0].headers,undefined);
+ assert.equal(p.calls[0].body,undefined);
+ assert.match(p.nodes.onlineConfigStatus.textContent,/已连到释义服务器/);
+});
+
+test('collapsing an in-flight explanation preserves its result for reopening',async()=>{
+ const p=page();p.configure();let finish;
+ p.context.fetch=()=>new Promise(resolve=>{finish=resolve});
+ const pending=p.nodes.onlineExplainBtn.onclick();
+ p.nodes.collapseResult.onclick();
+ finish(Response.json({answer:'视觉语言'}));
+ await pending;
+ assert.equal(p.nodes.resultPanel.hidden,true);
+ p.nodes.reopenResult.onclick();
+ assert.equal(p.nodes.resultPanel.hidden,false);
+ assert.equal(p.nodes.aiOutput.textContent,'视觉语言');
 });

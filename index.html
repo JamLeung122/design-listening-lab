@@ -3,24 +3,24 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#101722">
+  <meta name="theme-color" content="#141415">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Design Listening Lab</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="listening-lab-release" content="4.5">
+  <meta name="listening-lab-release" content="4.6">
   <!-- Keep layout with the HTML so Safari can render it even when asset caches disagree. -->
   <style>
 :root {
   color-scheme: dark;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  background: #101722;
-  color: #edf2fa;
-  --surface: #171f2c;
-  --raised: #212c3b;
-  --line: #344256;
-  --muted: #acbad0;
-  --accent: #c1ceff;
+  background: #141415;
+  color: #f1eff3;
+  --surface: #1b1b1d;
+  --raised: #262628;
+  --line: #38363b;
+  --muted: #b8b3bd;
+  --accent: #d8c2fc;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; min-width: 0; }
@@ -39,10 +39,10 @@ button, .button { cursor: pointer; touch-action: manipulation; }
 .button { display: inline-grid; place-items: center; }
 button:disabled { opacity: .55; cursor: wait; }
 button.quiet, .button.quiet { background: transparent; }
-button.primary { background: var(--accent); color: #14234d; border-color: transparent; font-weight: 700; }
-button[aria-pressed="true"] { color: #e1e8ff; background: #304475; border-color: #91a9ff; }
-:focus-visible { outline: 2px solid #a8bbff; outline-offset: 2px; }
-@media (hover: hover) { button:hover:not(:disabled), .button:hover { border-color: #a2b5dd; } }
+button.primary { background: var(--accent); color: #261a3b; border-color: transparent; font-weight: 700; }
+button[aria-pressed="true"] { color: #eddefe; background: #392b50; border-color: #ae8ee0; }
+:focus-visible { outline: 2px solid #c6a5f4; outline-offset: 2px; }
+@media (hover: hover) { button:hover:not(:disabled), .button:hover { border-color: #aaa0b6; } }
 button.danger { color: #ffc0bc; }
 a { color: var(--accent); }
 h1, h2, h3, p { margin: 0; }
@@ -59,10 +59,10 @@ h1, h2, h3, p { margin: 0; }
   justify-content: space-between;
   align-items: center;
 }
-h1 { font-size: clamp(1.25rem, 2.4vw, 1.7rem); line-height: 1.15; letter-spacing: -.025em; }
-.identity p { margin-top: 4px; color: var(--muted); font-size: .8rem; }
+h1 { font-size: clamp(1.25rem, 2.4vw, 1.625rem); line-height: 1.15; letter-spacing: -.025em; }
+.identity p { margin-top: 5px; color: var(--muted); font-size: .8rem; }
 .top-actions, .row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-.top-actions .status { margin-right: 4px; }
+.top-actions .status { margin-right: 4px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 99px; }
 .status, .help, .hint, .paper-status, .pill { color: var(--muted); font-size: .8125rem; line-height: 1.5; }
 .layout {
   display: grid;
@@ -82,52 +82,82 @@ h1 { font-size: clamp(1.25rem, 2.4vw, 1.7rem); line-height: 1.15; letter-spacing
 .panel-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 5px 10px; padding: 7px 12px; border-bottom: 1px solid var(--line); }
 .panel-header h2 { font-size: 1.0625rem; line-height: 1.35; }
 .panel-header > *, .top-actions > *, .row > * { min-width: 0; }
+.transcript-stage {
+  position: relative;
+  min-height: 280px;
+  height: 54vh;
+  height: 54dvh;
+}
 .content {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: 52vh;
-  max-height: 52dvh;
+  height: 100%;
   overflow: auto;
   overscroll-behavior: contain;
   padding: 8px 12px 12px;
 }
+.transcript-stage[data-showing-result="true"] .content { visibility: hidden; }
 .hint { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 3px 8px; margin-bottom: 8px; }
-.para { background: #1c2736; border: 1px solid #303e52; border-radius: 9px; padding: 8px 12px 12px; }
+.para { background: #222224; border: 1px solid #363338; border-radius: 9px; padding: 8px 12px 12px; }
 .para + .para { margin-top: 8px; }
 .para .meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px; color: var(--muted); font-size: .75rem; }
 .para .meta button { background: transparent; }
 .para .body { font-size: var(--transcript-size, 22px); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
 .para .hiddenText { font-size: .875rem; color: var(--muted); }
 .word { border-radius: 3px; cursor: pointer; }
-@media (hover: hover) { .word:hover { background: #344c71; } }
-.sentence-mode .sentence { cursor: pointer; border-bottom: 1px dotted #8ca4da; }
-#paragraphs ::selection { background: #506fb9; color: white; }
+@media (hover: hover) { .word:hover { background: #443651; } }
+.sentence-mode .sentence { cursor: pointer; border-bottom: 1px dotted #ad95cb; }
+#paragraphs ::selection { background: #654c91; color: white; }
 .note { border-top: 1px solid var(--line); padding: 10px 12px; }
-.note-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 6px; }
+.note-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 8px; }
 .note-heading h3 { color: var(--muted); font-size: .8125rem; font-weight: 600; }
-#selected { min-width: 0; overflow-wrap: anywhere; font-size: .9375rem; font-weight: 650; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.note-actions { margin-bottom: 8px; }
+#selected, #resultSelection {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+#selected { color: #ededee; font-size: .9375rem; font-weight: 650; }
+.result-panel {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #1b191e;
+}
+.result-panel[hidden] { display: none; }
+.result-header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.result-header > div { min-width: 0; }
+.result-header h3 { font-size: .8125rem; color: var(--accent); margin-bottom: 4px; }
+.result-header button { flex: none; }
+#resultSelection { font-size: 1.1875rem; font-weight: 650; line-height: 1.3; }
 #aiOutput {
-  max-height: clamp(76px, 20vh, 270px);
-  max-height: clamp(76px, 20dvh, 270px);
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  background: #111a27;
-  border: 1px solid #2b3849;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 1rem;
-  line-height: 1.65;
+  padding: 15px 16px 24px;
+  font-size: 1.0625rem;
+  line-height: 1.75;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-#aiOutput strong { color: #d6e0ff; }
+#aiOutput strong { color: #e3d0fc; }
 .ink-bar { padding: 7px 12px; }
 .palette { display: inline-flex; flex-wrap: wrap; gap: 2px; }
 button.color { width: 40px; padding: 0; display: grid; place-items: center; background: transparent; border-color: transparent; }
 button.color::before { content: ""; border-radius: 50%; width: 18px; height: 18px; background: var(--ink); border: 1px solid #bdc8d7; }
-button.color[aria-pressed="true"] { border-color: #91a9ff; background: #25334c; }
+button.color[aria-pressed="true"] { border-color: #ae8ee0; background: #332942; }
 .writearea { flex: 1 1 auto; min-height: 0; display: flex; padding-inline: 10px; }
 .paper { flex: 1; min-width: 0; min-height: 220px; position: relative; border-radius: 8px; overflow: hidden; background: #f8f9f4; touch-action: none; }
 .paper canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
@@ -143,16 +173,16 @@ button.color[aria-pressed="true"] { border-color: #91a9ff; background: #25334c; 
 .visually-hidden:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
 .modal {
   position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center;
-  background: #050911c7;
+  background: #080709c7;
   padding: max(14px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) max(14px, env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
 }
 .modal.open { display: flex; }
 body:has(.modal.open) { overflow: hidden; }
-.dialog { width: min(100%, 530px); max-height: 100%; overflow: auto; overscroll-behavior: contain; padding: 19px; background: var(--surface); border: 1px solid #53637b; border-radius: 13px; box-shadow: 0 18px 65px #0008; }
+.dialog { width: min(100%, 530px); max-height: 100%; overflow: auto; overscroll-behavior: contain; padding: 19px; background: var(--surface); border: 1px solid #57515d; border-radius: 13px; box-shadow: 0 18px 65px #0008; }
 .dialog h2 { font-size: 1.25rem; }
 .dialog > * + * { margin-top: 12px; }
 .dialog label.help { display: block; }
-.dialog input:is([type="password"], [type="url"]), .dialog textarea { display: block; width: 100%; background: #111a27; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 16px; }
+.dialog input:is([type="password"], [type="url"]), .dialog textarea { display: block; width: 100%; background: #151517; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 16px; }
 .dialog input[type="file"] { max-width: 100%; }
 .dialog label.help + input { margin-top: 5px; }
 .field { display: flex; align-items: center; gap: 12px; }
@@ -160,7 +190,7 @@ body:has(.modal.open) { overflow: hidden; }
 .menu-actions { display: grid; gap: 6px; }
 .menu-actions button { text-align: left; }
 #sourceText { min-height: 130px; }
-#diagLog { white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; max-height: 180px; padding: 8px; font-size: .8rem; background: #111a27; }
+#diagLog { white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; max-height: 180px; padding: 8px; font-size: .8rem; background: #151517; }
 
 @media (min-width: 820px), (min-width: 700px) and (orientation: landscape) {
   .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr); }
@@ -169,7 +199,7 @@ body:has(.modal.open) { overflow: hidden; }
   body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
   .top { flex: none; }
   .layout { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); }
-  .content { max-height: none; }
+  .transcript-stage { flex: 1; height: auto; min-height: 0; }
   .panel-header, .ink-bar, .player, .paper-status, .note, #readingAudioDock { flex: none; }
   .paper { min-height: 0; }
 }
@@ -201,9 +231,21 @@ body:has(.modal.open) { overflow: hidden; }
           <button class="quiet" data-open="readingTools" aria-label="原文工具">原文工具</button>
         </div>
       </header>
-      <div class="content" tabindex="0" aria-label="原文滚动区域">
-        <p class="hint">点选单词，或长按拖选短语。<button class="quiet" id="modeBtn" aria-pressed="false">选择：单词</button></p>
-        <div id="paragraphs"></div>
+      <div class="transcript-stage" id="transcriptStage">
+        <div class="content" tabindex="0" aria-label="原文滚动区域">
+          <p class="hint">点选单词，或长按拖选短语。<button class="quiet" id="modeBtn" aria-pressed="false">选择：单词</button></p>
+          <div id="paragraphs"></div>
+        </div>
+        <section class="result-panel" id="resultPanel" aria-labelledby="resultTitle" hidden>
+          <header class="result-header">
+            <div>
+              <h3 id="resultTitle">词汇释义</h3>
+              <p id="resultSelection"></p>
+            </div>
+            <button id="collapseResult" aria-controls="resultPanel">收起释义</button>
+          </header>
+          <div id="aiOutput" role="status" tabindex="0"></div>
+        </section>
       </div>
       <section class="note" aria-labelledby="explanationTitle">
         <div class="note-heading">
@@ -213,9 +255,9 @@ body:has(.modal.open) { overflow: hidden; }
         <div class="row note-actions">
           <button class="primary" id="onlineExplainBtn">在线 AI 解释</button>
           <button id="explainBtn">基础释义</button>
+          <button class="quiet" id="reopenResult" aria-controls="resultPanel" aria-expanded="false" hidden>查看释义</button>
           <button class="quiet" data-open="phraseTools" aria-label="更多释义操作">更多</button>
         </div>
-        <div id="aiOutput" role="status" tabindex="0">选中英文后，可以用在线 AI 或离线词库查看释义。</div>
       </section>
       <div id="readingAudioDock" aria-label="阅读模式音频播放区"></div>
     </section>
@@ -301,7 +343,7 @@ body:has(.modal.open) { overflow: hidden; }
     <div class="menu-actions"><button data-close="audioTools">完成</button></div>
   </div></div>
 <div class="modal" id="importModal"><div class="dialog"><h2>导入英文原文</h2><p class="help">支持 TXT、SRT、VTT 文件或粘贴文字。每个空行划分一段。请使用你有权使用的字幕或自行整理的原文。示例是原创教学文字，不是节目字幕。</p><input type="file" id="subtitleFile" accept=".txt,.srt,.vtt,text/plain"><textarea id="sourceText" placeholder="粘贴英文原文，段落之间空一行"></textarea><div class="row"><button id="doImport" class="primary">导入</button><button data-close="importModal">取消</button></div></div></div>
-<div class="modal" id="onlineSettingsModal"><div class="dialog"><h2>在线 AI · 安全连接</h2><p class="help">网页只保存你的代理服务地址。访问口令仅保存在当前打开的页面内存中，刷新后需要重新输入。不要在这里输入百炼或 OpenAI API Key：百炼或 OpenAI 的 API Key 必须存放在服务器密钥中。</p><label class="help" for="onlineEndpoint">Qwen AI 服务地址（Cloudflare Worker，以 /explain 结尾）</label><input id="onlineEndpoint" type="url" inputmode="url" placeholder="https://your-worker.workers.dev/explain" autocomplete="off"><label class="help" for="onlineToken">应用访问口令（不是百炼或 OpenAI API Key）</label><input id="onlineToken" type="password" placeholder="在 Worker 中设置的 APP_ACCESS_TOKEN" autocomplete="off"><div class="row" style="margin-top:12px"><button id="saveOnlineSettings" class="primary">保存当前连接</button><button data-close="onlineSettingsModal">关闭</button></div><p id="onlineConfigStatus" class="help" role="status">未配置。离线功能保持可用。</p></div></div>
+<div class="modal" id="onlineSettingsModal"><div class="dialog"><h2>在线 AI · 安全连接</h2><p class="help">网页只保存你的代理服务地址。访问口令仅保存在当前打开的页面内存中，刷新后需要重新输入。不要在这里输入百炼或 OpenAI API Key：百炼或 OpenAI 的 API Key 必须存放在服务器密钥中。</p><label class="help" for="onlineEndpoint">Qwen AI 服务地址（Cloudflare Worker，以 /explain 结尾）</label><input id="onlineEndpoint" type="url" inputmode="url" placeholder="https://your-worker.workers.dev/explain" autocomplete="off"><label class="help" for="onlineToken">应用访问口令（不是百炼或 OpenAI API Key）</label><input id="onlineToken" type="password" placeholder="在 Worker 中设置的 APP_ACCESS_TOKEN" autocomplete="off"><div class="row" style="margin-top:12px"><button id="saveOnlineSettings" class="primary">保存当前连接</button><button id="testOnlineConnection">测试连接</button><button data-close="onlineSettingsModal">关闭</button></div><p id="onlineConfigStatus" class="help" role="status">未配置。离线功能保持可用。</p></div></div>
 <div class="modal" id="aiModal"><div class="dialog"><h2>本地 AI · 安装与状态</h2><p class="help">使用 WebLLM 在浏览器设备端推理。首次需要联网下载模型及运行组件；WebLLM 的远程运行组件可能无法离线重新初始化；请以飞行模式实测为准。不会自动上传你的听写或原文。你已在 Noema 安装的模型无法直接从 Safari 调用；建议使用「复制到 Noema」。</p><div id="gpuStatus" class="pill">检测中</div><p class="help">浏览器模型测试是可选功能。先选更小的 SmolLM2 360M（约 380MB），只用于验证下载与推理；英语解释质量可能不及 Noema 的 Qwen3 1.7B，且相同网络问题仍可能发生。</p><label class="help" for="modelChoice">浏览器模型 <select id="modelChoice"><option value="SmolLM2-360M-Instruct-q4f16_1-MLC" selected>SmolLM2 360M · 约380MB（测试优先）</option><option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen2.5 0.5B · 约950MB（原方案）</option></select></label><p id="modelInfo" class="help"></p><div class="row"><button class="primary" id="installAI">下载并加载所选模型</button><button id="testAI">测试离线解释</button><button data-close="aiModal">关闭</button></div><p id="aiStatus" class="help">尚未安装。</p><hr style="border:0;border-top:1px solid #394a63;margin:18px 0"><h3>网络与缓存诊断</h3><p class="help">检测模型配置与首个参数分片的 HTTP Range 响应，并检查浏览器缓存。分片总数随模型版本变化，诊断不会下载完整模型。</p><button id="diagBtn">检测模型连接与缓存</button><pre id="diagLog" aria-live="polite">尚未检测</pre><p class="help">如果卡在 0%，请截图诊断日志，不要反复下载。</p></div></div>
 <noscript><p>此页面需要启用 Safari 的 JavaScript 才能选词、听写和保存笔迹。</p></noscript>
 <!-- Core controls ship with the HTML to keep offline updates atomic. -->
@@ -387,7 +429,7 @@ function select(s){
  selection=s.replace(/\s+/g,' ').trim();
  if(!selection)return;
  $('selected').textContent='选中：'+selection;
- $('aiOutput').textContent='选择在线 AI 或基础释义。也可在「更多」中复制到 Noema。';
+
 }
 render();
 $('modeBtn').onclick=()=>{selectionMode=selectionMode==='word'?'sentence':'word';render()};
@@ -400,10 +442,10 @@ document.addEventListener('selectionchange',()=>{
 $('selectionBtn').onclick=()=>{
  const text=selectedTranscriptText()||selection;
  if(text)select(text);
- else $('aiOutput').textContent='请在原文中长按并拖动选区，或切换「选择：整句」后点一句话。';
+ else showResult('','请在原文中长按并拖动选区，或切换「选择：整句」后点一句话。');
 };$('explainBtn').onclick=()=>explain();$('savePhrase').onclick=()=>{if(!selection)return;let a=(readStoredArray('dll_phrases',item=>item&&typeof item.text==='string')||[]);a.push({text:selection,created:new Date().toISOString()});try{localStorage.setItem('dll_phrases',JSON.stringify(a))}catch{
- $('aiOutput').textContent='浏览器暂时无法保存收藏。';return;
- }$('studyInfo').textContent='已收藏：'+selection;scheduleSave()};
+ showResult(selection,'浏览器暂时无法保存收藏。');return;
+ }showResult(selection,'已收藏到学习记录。');scheduleSave()};
 // Short prompt for fast learning; detailed prompt remains available.
 function currentEnglish(){return selectedTranscriptText()||selection}
 function makeNoemaPrompt(text,detailed=false){
@@ -425,24 +467,47 @@ function makeNoemaPrompt(text,detailed=false){
   '英文：'+text
  ].join('\n');
 }
-function handoffText(){
- const text=currentEnglish();
- if(!text){$('aiOutput').textContent='请先显示原文，并点击单词、整句或长按拖选短语。';return null}
- return text;
-}
 async function copyForNoema(detailed){
- const text=handoffText();if(!text)return;
+ const text=currentEnglish();
+ if(!text){showResult('', '请先选中英文，再复制到 Noema。');return}
+ const revision=showResult(text,'正在复制到 Noema…');
  const prompt=makeNoemaPrompt(text,detailed);
  try{
   await navigator.clipboard.writeText(prompt);
-  $('aiOutput').textContent=(detailed?'详细':'精简')+'学习提示词已复制：'+text+'\n切换到 Noema 粘贴发送即可。';
+  if(revision===resultRevision)$('aiOutput').textContent=(detailed?'详细':'精简')+'学习提示词已复制：'+text+'\n切换到 Noema 粘贴发送即可。';
  }catch{
-  $('aiOutput').textContent='复制失败；请从下方手动复制：\n'+prompt;
+  if(revision===resultRevision)$('aiOutput').textContent='复制失败；请从下方手动复制：\n'+prompt;
  }
 }
 $('copyQuick').onclick=()=>copyForNoema(false);
 $('copyNoema').onclick=()=>copyForNoema(true);
 
+
+function toggleResult(open){
+ $('resultPanel').hidden=!open;
+ $('transcriptStage').dataset.showingResult=String(open);
+ $('reopenResult').hidden=open;
+ $('reopenResult').setAttribute('aria-expanded',String(open));
+ if(open)$('resultPanel').scrollIntoView({block:'nearest'});
+}
+
+let resultRevision=0;
+function showResult(text,message){
+ $('resultSelection').textContent=text;
+ const output=$('aiOutput');
+ output.textContent=message;
+ output.scrollTop=0;
+ toggleResult(true);
+ return ++resultRevision;
+}
+$('collapseResult').onclick=()=>{
+ toggleResult(false);
+ $('reopenResult').focus({preventScroll:true});
+};
+$('reopenResult').onclick=()=>{
+ toggleResult(true);
+ $('collapseResult').focus({preventScroll:true});
+};
 
 // Online AI is optional and only sends explicitly selected English text when tapped.
 // Never put a provider API key in client code or send one from the browser.
@@ -456,35 +521,64 @@ $('onlineSettingsBtn').onclick=()=>{
  $('onlineConfigStatus').textContent='只有你主动点击「在线 AI 解释」时才发送选中的英文。';
  openModal('onlineSettingsModal');
 };
-$('saveOnlineSettings').onclick=()=>{
- const value=$('onlineEndpoint').value.trim();
- let url;
+function readEndpoint(){
  try{
-  url=new URL(value);
-  if(url.protocol!=='https:' || url.pathname!=='/explain' || url.username || url.password || url.search || url.hash)throw Error('invalid');
- }catch{$('onlineConfigStatus').textContent='请输入 HTTPS 地址，并确保路径以 /explain 结尾。';return}
+  const url=new URL($('onlineEndpoint').value.trim());
+  if(url.protocol!=='https:'||url.pathname!=='/explain'||url.username||url.password||url.search||url.hash)throw Error('invalid');
+  return url.href;
+ }catch{
+  $('onlineConfigStatus').textContent='请输入以 /explain 结尾的 HTTPS 地址。';
+  return null;
+ }
+}
+
+$('testOnlineConnection').onclick=async()=>{
+ const endpoint=readEndpoint();
+ if(!endpoint)return;
+ const status=$('onlineConfigStatus');
+ const button=$('testOnlineConnection');
+ if(!navigator.onLine){status.textContent='当前设备处于离线状态。';return}
+ button.disabled=true;
+ status.textContent='正在检查设备到释义服务器的连接…';
+ const controller=new AbortController();
+ const timeout=setTimeout(()=>controller.abort(),6500);
+ try{
+  // Our Worker returns 405 to an unauthenticated GET without calling Bailian.
+  const response=await fetch(endpoint,{mode:'cors',cache:'no-store',credentials:'omit',redirect:'error',signal:controller.signal});
+  status.textContent=response.status===405
+   ?'已连到释义服务器。此测试不调用百炼。'
+   :'释义地址有响应，但并非预期的 Worker 响应（HTTP '+response.status+'）。';
+ }catch{
+  status.textContent=controller.signal.aborted
+   ?'连接释义服务器超时。可切换 Wi-Fi 或热点后重试。'
+   :'浏览器无法连到释义服务器。请核对地址和当前网络。';
+ }finally{clearTimeout(timeout);button.disabled=false}
+};
+
+$('saveOnlineSettings').onclick=()=>{
+ const url=readEndpoint();
+ if(!url)return;
  const token=$('onlineToken').value.trim();
  if(token.startsWith('sk-')){$('onlineConfigStatus').textContent='这里需要独立的应用访问口令，请勿输入百炼或 OpenAI API Key。';return}
  if(!token){$('onlineConfigStatus').textContent='请输入 APP_ACCESS_TOKEN 访问口令（不是百炼 API Key）。';return}
- onlineEndpoint=url.href;
+ onlineEndpoint=url;
  onlineAccessToken=token;
  try{localStorage.setItem('dll_online_endpoint',onlineEndpoint)}catch{}
  $('onlineConfigStatus').textContent='连接设置已保存在当前页面。现在选择英文并点击「在线 AI 解释」。';
 };
 let onlineExplaining=false;
 $('onlineExplainBtn').onclick=async()=>{
- const text=(selectedTranscriptText()||selection).trim();
- if(!text){$('aiOutput').textContent='请先选中一个英文单词、短语或句子。';return}
- if(text.length>1200){$('aiOutput').textContent='一次最多解释 1200 个字符，请缩短选区。';return}
- if(!navigator.onLine){$('aiOutput').textContent='当前离线。请使用「基础释义」或复制到 Noema。';return}
- if(!onlineEndpoint||!onlineAccessToken){
-  $('aiOutput').textContent='在线 AI 尚未连接。请在「设置」中连接在线 AI。';
-  openModal('onlineSettingsModal');return;
- }
  if(onlineExplaining)return;
+ const text=(selectedTranscriptText()||selection).trim();
+ if(!text){showResult('','请先选中一个英文单词、短语或句子。');return}
+ if(text.length>1200){showResult(text,'一次最多解释 1200 个字符，请缩短选区。');return}
+ if(!navigator.onLine){showResult(text,'当前离线。可以使用基础释义，或在「更多」中复制到 Noema。');return}
+ if(!onlineEndpoint||!onlineAccessToken){
+  $('onlineSettingsBtn').onclick();return;
+ }
  onlineExplaining=true;
  $('onlineExplainBtn').disabled=true;
- $('aiOutput').textContent='正在在线解释：'+text;
+ const revision=showResult(text,'正在请求在线释义…');
  const controller=new AbortController();
  const timer=setTimeout(()=>controller.abort(),30000);
  try{
@@ -496,11 +590,16 @@ $('onlineExplainBtn').onclick=async()=>{
    signal:controller.signal
   });
   const data=await response.json();
-  if(!response.ok)throw Error(data.error||'HTTP '+response.status);
+  if(!response.ok){
+   const detail=data.error==='AI request timed out'?'已连到释义服务器，但百炼回复超时。':data.error||'HTTP '+response.status;
+   throw Error(detail);
+  }
   if(typeof data.answer!=='string')throw Error('响应中缺少解释文字');
-  renderOnlineAnswer(data.answer);
+  if(revision===resultRevision)renderOnlineAnswer(data.answer);
  }catch(e){
-  $('aiOutput').textContent='在线解释未成功：'+(e.name==='AbortError'?'连接超时':e.message||String(e))+'。你的原文与手写不会受到影响。';
+  if(revision===resultRevision)$('aiOutput').textContent=controller.signal.aborted||e.name==='TypeError'
+   ?'没有收到释义服务器的响应。可在「设置 → 在线 AI 设置」里点「测试连接」。'
+   :'在线解释未成功：'+(e.message||String(e));
  }finally{clearTimeout(timer);onlineExplaining=false;$('onlineExplainBtn').disabled=false}
 };
 
@@ -518,7 +617,7 @@ function renderOnlineAnswer(answer){
  output.scrollTop=0;
 }
 
-async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个设计或艺术相关的原创英语例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」不在内置基础词库。点击「复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
+async function explain(){const text=currentEnglish();if(!text){showResult('','请先选中英文。');return}const revision=showResult(text,'正在解释…');if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个设计或艺术相关的原创英语例句。不要声称来自纪录片原文。'},{role:'user',content:text}],temperature:0.2,max_tokens:280});if(revision===resultRevision)$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch{if(revision!==resultRevision)return}}let meaning=dictionary[text.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${text}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${text}」不在内置基础词库。点击「更多 → 复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
 const pageRegions=document.querySelectorAll('body > header, body > main');
 let activeModal=null;
 let modalTrigger=null;
@@ -561,7 +660,9 @@ document.querySelectorAll('.modal').forEach(modal=>{
  modal.addEventListener('click',event=>{if(event.target===modal)closeModal(modal.id)});
 });
 document.addEventListener('keydown',event=>{
- if(event.key==='Escape'&&activeModal)closeModal(activeModal.id);
+ if(event.key!=='Escape')return;
+ if(activeModal)closeModal(activeModal.id);
+ else if(!$('resultPanel').hidden)$('collapseResult').onclick();
 });
 $('importBtn').onclick=()=>openModal('importModal');$('aiBtn').onclick=()=>{openModal('aiModal');checkGPU()};$('subtitleFile').onchange=async e=>{$('sourceText').value=await e.target.files[0].text()};function normalize(t){return t.replace(/^WEBVTT.*$/gm,'').replace(/^\d+\s*$/gm,'').replace(/^\d\d:\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/^\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/<[^>]+>/g,'').split(/\n\s*\n/).map(s=>s.trim().replace(/\n/g,' ')).filter(Boolean)}$('doImport').onclick=()=>{let t=$('sourceText').value.trim();if(!t)return;paras=normalize(t);hidden=new Set(paras.map((_,i)=>i));let persisted=true;
 try{localStorage.setItem('dll_paras',JSON.stringify(paras))}catch{persisted=false}
@@ -657,7 +758,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v4.5');
+   const cache=await caches.open('design-listening-lab-v4.6');
    const core=['./index.html','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
