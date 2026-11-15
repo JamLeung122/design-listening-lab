@@ -8,7 +8,7 @@
   <title>Design Listening Lab</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="listening-lab-release" content="4.10">
+  <meta name="listening-lab-release" content="4.11">
   <!-- Keep layout with the HTML so Safari can render it even when asset caches disagree. -->
   <style>
 :root {
@@ -112,8 +112,6 @@ h1 { font-size: clamp(1.25rem, 2.4vw, 1.625rem); line-height: 1.15; letter-spaci
 #lessonStatus { overflow-wrap:anywhere; }
 .timing-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; }
 .time-field { display:grid; gap:4px; color:var(--muted); font-size:.875rem; }
-.skip-fields { margin: 0; border: 1px solid var(--line); border-radius: 8px; padding: 9px; }
-.skip-fields textarea { min-height: 65px; }
 .timing-fields input { width:100%; min-height:44px; padding:8px; background:#151517; color:inherit; border:1px solid var(--line); border-radius:8px; font-size:16px; }
 .para .body { font-size: var(--transcript-size, 22px); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
 .para .hiddenText { font-size: .875rem; color: var(--muted); }
@@ -251,7 +249,7 @@ body:has(.modal.open) { overflow: hidden; }
           <p class="hint">点选单词，或长按拖选短语。<button class="quiet" id="modeBtn" aria-pressed="false">选择：单词</button></p>
           <div class="lesson-bar">
             <button class="quiet" id="importAudioBtn">导入音频（M4A）</button>
-            <button class="quiet" id="trimAudioBtn" hidden>跳过片头与空白</button>
+            <button class="quiet" id="trimAudioBtn" hidden>跳过片头与片尾</button>
             <span id="studyProgress" class="status" role="status"></span>
           </div>
           <p id="lessonStatus" class="hint" role="status"></p>
@@ -381,7 +379,7 @@ body:has(.modal.open) { overflow: hidden; }
   <div class="row"><button id="saveTiming" class="primary">保存时间</button><button data-close="segmentTimingModal">取消</button></div>
 </div></div>
 <div class="modal" id="audioTrimModal"><div class="dialog">
-  <h2>跳过片头与空白</h2>
+  <h2>跳过片头与片尾</h2>
   <p class="help">试听原音频，把第一句和最后一句对白标为正片范围。时间以原音频为准。</p>
   <div class="row">
     <button type="button" id="previewTrim">试听原音频</button>
@@ -392,11 +390,6 @@ body:has(.modal.open) { overflow: hidden; }
     <div class="time-field"><label for="trimStart">正片开始</label><input id="trimStart" inputmode="text"><button id="captureTrimStart">设为开始</button></div>
     <div class="time-field"><label for="trimEnd">正片结束</label><input id="trimEnd" inputmode="text"><button id="captureTrimEnd">设为结束</button></div>
   </div>
-  <details class="skip-fields">
-    <summary>跳过中间区间</summary>
-    <p class="help"><label for="trimSkips">每行一个要跳过的范围，如 1:10–1:25。</label></p>
-    <textarea id="trimSkips" placeholder="1:10–1:25"></textarea>
-  </details>
   <p id="trimStatus" class="help" role="status"></p>
   <div class="row">
     <button class="primary" id="saveTrim">应用并重新对齐</button>
@@ -506,16 +499,7 @@ function readLesson(){
 
 function trimWindows(trim,duration){
  const {start,end}=trim||{start:0,end:duration};
- const cuts=(trim?.skips||[]).map(cut=>({start:Math.max(start,cut.start),end:Math.min(end,cut.end)}))
-  .filter(cut=>cut.start<cut.end).sort((a,b)=>a.start-b.start);
- const windows=[];
- let cursor=start;
- for(const cut of cuts){
-  if(cut.start>cursor)windows.push({start:cursor,end:cut.start});
-  cursor=Math.max(cursor,cut.end);
- }
- if(cursor<end)windows.push({start:cursor,end});
- return windows;
+ return start<end?[{start,end}]:[];
 }
 
 function boundedWindows(start,end,windows){
@@ -615,25 +599,40 @@ function mergeStudyFlags(flags,index){
  return merged;
 }
 
-function parseTrim(startText,endText,skipText,duration){
+function mergeShortSegments(source,manual=[],marks=new Set(),concealed=new Set()){
+ const segments=source.slice(),adjustments=manual.slice();
+ let learned=new Set(marks),hidden=new Set(concealed);
+ let count=0;
+ const short=segment=>wordCount(segment.text)<=18||(isTimed(segment)&&segment.end-segment.start<7);
+ // Segment 1 has a dedicated Episode 1 preset, so keep its text boundary.
+ for(let index=1;index+1<segments.length;){
+  const left=segments[index],right=segments[index+1];
+  const timed=isTimed(left),rightTimed=isTimed(right);
+  const comparable=timed===rightTimed&&(!timed||right.start-left.end<=2.5&&Math.max(left.end,right.end)-left.start<=46);
+  if(!comparable||isTimed(adjustments[index])||isTimed(adjustments[index+1])||
+     !(short(left)||short(right))||wordCount(left.text)+wordCount(right.text)>80){
+   index++;continue;
+  }
+  segments.splice(index,2,{
+   text:left.text+' '+right.text,
+   start:timed?left.start:null,end:timed?Math.max(left.end,right.end):null
+  });
+  if(adjustments.length>index)adjustments.splice(index,2,null);
+  learned=mergeStudyFlags(learned,index);
+  hidden=mergeStudyFlags(hidden,index);
+  count++;
+ }
+ return {segments,adjustments,learned,hidden,count};
+}
+
+function parseTrim(startText,endText,duration){
  const start=parseTime(startText);
  const parsedEnd=parseTime(endText);
  const end=parsedEnd-duration<=0.051?Math.min(parsedEnd,duration):parsedEnd;
  if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end>duration||end<=start){
   return {error:'正片起止时间须在音频长度内，结束时间要晚于开始时间。'};
  }
- const skips=[];
- for(const line of skipText.trim().split(/\n+/).filter(Boolean)){
-  const pair=line.trim().split(/\s*[-–—~～]\s*/);
-  const times=pair.map(parseTime);
-  if(pair.length!==2||!times.every(Number.isFinite)||times[0]<start||times[1]>end||times[1]<=times[0]){
-   return {error:'跳过区间须在正片范围内，每行填一组起止时间，例如 1:10–1:25。'};
-  }
-  skips.push({start:times[0],end:times[1]});
- }
- const trim={start,end,skips};
- if(!trimWindows(trim,duration).length)return {error:'至少保留一段可以播放的音频。'};
- return {trim};
+ return {trim:{start,end}};
 }
 
 const savedTranscript=readStoredArray('dll_paras',item=>typeof item==='string');
@@ -655,8 +654,19 @@ let audioFileKey=null,alignedRanges=[],audioDuration=NaN;
 let audioTrim=null,keptWindows=[];
 let hidden=new Set(!savedLesson&&savedTranscript?.length?paras.map((_,i)=>i):[]),selection='',engine=null,modelName='',aiLoading=false,strokes=[],current=null,pen='#1d2939',erase=false,ctx,canvas,db;
 
+const shortMergeVersion=1;
+let migrationMergeCount=0;
+if(savedLesson?.shortMergeVersion!==shortMergeVersion){
+ const merged=mergeShortSegments(segments,adjustments,learned,hidden);
+ if(merged.count){
+  ({segments,adjustments,learned,hidden}=merged);
+  paras=segments.map(segment=>segment.text);
+  migrationMergeCount=merged.count;
+ }
+}
+
 function lessonData(){
- return {segments,learned:[...learned],audioKey:savedAudioKey,adjustments,episodeOnePreset,audioTrim:audioTrim&&{file:audioFileKey,...audioTrim}};
+ return {segments,learned:[...learned],shortMergeVersion,audioKey:savedAudioKey,adjustments,episodeOnePreset,audioTrim:audioTrim&&{file:audioFileKey,...audioTrim}};
 }
 
 function saveLesson(){
@@ -1068,7 +1078,8 @@ $('subtitleFile').onchange=async event=>{
  catch{$('importStatus').textContent='无法读取文件，请重试或粘贴原文。'}
 };
 $('doImport').onclick=()=>{
- const next=importSegments($('sourceText').value);
+ const merged=mergeShortSegments(importSegments($('sourceText').value));
+ const next=merged.segments;
  if(!next.length){$('importStatus').textContent='没有读到可用原文。请检查文字或字幕时间码。';return}
  if(JSON.stringify(next)!==JSON.stringify(segments)){
   segments=next;paras=segments.map(segment=>segment.text);
@@ -1079,6 +1090,7 @@ $('doImport').onclick=()=>{
  resultRevision++;toggleResult(false);$('reopenResult').hidden=true;
  refreshAudioRanges();render();scheduleSave();closeModal('importModal');
  if(!saveLesson())$('lessonStatus').textContent='原文已在当前页分段，可在笔记工具中备份。';
+ else if(merged.count)reportLesson('已合并 '+merged.count+' 处相邻短段。');
 };
 
 const audio=$('audio');
@@ -1107,7 +1119,7 @@ function refreshAudioRanges(){
  const timed=segments.some(segment=>Number.isFinite(segment.start));
  const text=timed?'按字幕时间播放，可逐段校准。':'纯文本按字数估算位置，可逐段校准。';
  const preset=alignedRanges[0]?.kind==='第一集预设';
- reportLesson((audioTrim?'已跳过标记区间。':'')+(preset?'第 1 段预设 00:14–00:29。':'')+text);
+ reportLesson((audioTrim?'已跳过片头和片尾。':'')+(preset?'第 1 段预设 00:14–00:29。':'')+text);
 }
 
 function stopSegment(){
@@ -1233,9 +1245,13 @@ const trimStorageKey=()=> 'dll_trim_v1:'+audioFileKey;
 function loadAudioTrim(){
  try{
   const data=JSON.parse(localStorage.getItem(trimStorageKey()));
-  if(!data||!Array.isArray(data.skips))return null;
-  const parsed=parseTrim(String(data.start),String(data.end),data.skips.map(cut=>cut.start+'–'+cut.end).join('\n'),audioDuration);
-  return parsed.trim||null;
+  if(!data)return null;
+  const parsed=parseTrim(String(data.start),String(data.end),audioDuration);
+  if(!parsed.trim)return null;
+  if(Object.prototype.hasOwnProperty.call(data,'skips')){
+   try{localStorage.setItem(trimStorageKey(),JSON.stringify(parsed.trim))}catch{}
+  }
+  return parsed.trim;
  }catch{return null}
 }
 
@@ -1251,7 +1267,6 @@ $('trimAudioBtn').onclick=()=>{
  audio.pause();stopSegment();
  $('trimStart').value=formatTime(audioTrim?.start??0);
  $('trimEnd').value=formatTime(audioTrim?.end??audioDuration);
- $('trimSkips').value=(audioTrim?.skips||[]).map(cut=>formatTime(cut.start)+'–'+formatTime(cut.end)).join('\n');
  $('trimSeek').max=String(audioDuration);
  $('trimStatus').textContent='';
  openModal('audioTrimModal');syncTrimPreview();
@@ -1281,7 +1296,7 @@ function applyAudioTrim(value){
 }
 
 $('saveTrim').onclick=()=>{
- const result=parseTrim($('trimStart').value,$('trimEnd').value,$('trimSkips').value,audioDuration);
+ const result=parseTrim($('trimStart').value,$('trimEnd').value,audioDuration);
  if(result.error){$('trimStatus').textContent=result.error;return}
  applyAudioTrim(result.trim);
 };
@@ -1340,6 +1355,12 @@ audio.ontimeupdate=()=>{
  enforcePlaybackBounds();
 };
 refreshAudioRanges();render();
+if(migrationMergeCount){
+ const persisted=saveLesson();
+ reportLesson(persisted?'已合并 '+migrationMergeCount+' 处相邻短段。导入 M4A 后可按新段落播放。':'已在当前页面合并短段，浏览器暂时无法保存。');
+}else if(savedLesson&&savedLesson.shortMergeVersion!==shortMergeVersion){
+ saveLesson();
+}
 
 canvas=$('ink');ctx=canvas.getContext('2d');function resize(){let rect=$('paper').getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);redraw()}function redraw(){let w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.fillStyle='#f8f9f4';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#d9e0dc';ctx.lineWidth=1;for(let y=35;y<h;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}for(let s of strokes){ctx.strokeStyle=s.erase?'#f8f9f4':s.color;ctx.lineWidth=s.erase?18:2.5;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();s.points.forEach(([x,y],i)=>i?ctx.lineTo(x*w,y*h):ctx.moveTo(x*w,y*h));ctx.stroke()}}function pos(e){let r=canvas.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]}canvas.onpointerdown=e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);current={color:pen,erase,points:[pos(e)]};strokes.push(current);redraw()};canvas.onpointermove=e=>{if(!current)return;current.points.push(pos(e));redraw()};canvas.onpointerup=()=>{current=null;hasEditedInk=true;scheduleSave()};canvas.onpointercancel=()=>{current=null;hasEditedInk=true;scheduleSave()};if(typeof ResizeObserver==='function'){
  new ResizeObserver(resize).observe($('paper'));
@@ -1430,7 +1451,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v4.10');
+   const cache=await caches.open('design-listening-lab-v4.11');
    const core=['./index.html','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }

@@ -136,42 +136,36 @@ test('untimed ranges are contiguous and fill the imported recording',()=>{
 });
 
 
-test('trimmed estimates skip intro, credits, and gaps while keeping original time coordinates',()=>{
+test('trim retains continuous playback inside the intro and outro limits even for older saved settings',()=>{
  const context=lessonFunctions();
  const data=JSON.parse(vm.runInContext(`
-  const window=trimWindows({start:10,end:45,skips:[{start:20,end:30},{start:25,end:35}]},60);
-  JSON.stringify({
-   window,
-   estimates:estimateRanges(['first','second'],60,window),
-   subtitle:clipRange(5,22,window),
-   excluded:clipRange(24,29,window)
-  })
+  const window=trimWindows({start:10,end:45,skips:[{start:20,end:30}]},60);
+  JSON.stringify({window,estimates:estimateRanges(['first','second'],60,window)})
  `,context));
  assert.deepEqual(data,{
-  window:[{start:10,end:20},{start:35,end:45}],
-  estimates:[{start:10,end:20},{start:35,end:45}],
-  subtitle:{start:10,end:20},excluded:null
+  window:[{start:10,end:45}],
+  estimates:[{start:10,end:27.5},{start:27.5,end:45}]
  });
 });
 
-test('trim rejects invalid and fully excluded ranges',()=>{
+test('trim still validates start and end against the source audio',()=>{
  const context=lessonFunctions();
- assert.equal(vm.runInContext("parseTrim('7','30','10–15',45).trim.skips[0].end",context),15);
- for(const [start,end,skips] of [['15','10',''],['5','18','4–8'],['5','18','5–18']]){
-  context.input=[start,end,skips,45];
+ assert.equal(vm.runInContext("parseTrim('7','30',45).trim.end",context),30);
+ for(const [start,end] of [['15','10'],['5','55'],['x','18']]){
+  context.input=[start,end,45];
   assert.equal(vm.runInContext("typeof parseTrim(...input).error",context),'string');
  }
 });
 
-test('playback jumps a marked gap and stops at the segment end',()=>{
+test('playback continues through the middle and stops at the segment end',()=>{
  const logic=source.slice(source.indexOf('function enforcePlaybackBounds()'),source.indexOf('async function playSegment'));
  const audio={paused:false,seeking:false,currentTime:21,playbackRate:1,pause(){this.paused=true}};
  const context={audio,stopTimer:null,clearTimeout:()=>{},setTimeout:()=>{},rawAudioPreview:()=>false,
-  keptWindows:[{start:10,end:20},{start:30,end:45}],activeSegment:{start:10,end:38},audioTrim:true,loop:false,clipRange:()=>null,
+  keptWindows:[{start:10,end:45}],activeSegment:{start:10,end:38},audioTrim:true,loop:false,clipRange:()=>null,
   stopSegment(){context.activeSegment=null}
  };
  vm.runInNewContext(logic+';enforcePlaybackBounds();',context);
- assert.equal(audio.currentTime,30);
+ assert.equal(audio.currentTime,21);
  assert.equal(audio.paused,false);
  audio.currentTime=38.1;
  vm.runInNewContext(logic+';enforcePlaybackBounds();',context);
@@ -237,5 +231,21 @@ test('episode one defaults to 14–29 and leaves explicit timings and trim bound
  assert.deepEqual(result,{
   aligned:[{start:14,end:29,kind:'第一集预设'},{start:29,end:60,kind:'承接估算'}],
   noMutation:0,disabled:[],clipped:[],subtitle:[],edited:[{start:12,end:20}]
+ });
+});
+
+
+test('saved short text segments merge around protected first and calibrated segments',()=>{
+ const context=lessonFunctions();
+ const result=JSON.parse(vm.runInContext(`
+  const segments=['first','very short','short again','calibrated','this one is also short','last short']
+   .map(text=>({text,start:null,end:null}));
+  const adjusted=[null,null,null,{start:40,end:43}];
+  const {segments:merged,adjustments,learned,count}=mergeShortSegments(segments,adjusted,new Set([1,2,3,4]));
+  JSON.stringify({texts:merged.map(s=>s.text),adjustments,learned:[...learned].sort((a,b)=>a-b),count})
+ `,context));
+ assert.deepEqual(result,{
+  texts:['first','very short short again','calibrated','this one is also short last short'],
+  adjustments:[null,null,{start:40,end:43}],learned:[1,2],count:2
  });
 });
