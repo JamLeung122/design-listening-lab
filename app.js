@@ -6,12 +6,12 @@ const $=id=>document.getElementById(id);let paras=JSON.parse(localStorage.getIte
 // User-controlled transcript size; persists across offline PWA relaunches.
 const fontSizeControl=$('fontSize');
 function applyTranscriptFont(value){
- const font=Math.min(26,Math.max(18,Number(value)||20));
+ const font=Math.min(26,Math.max(18,Number(value)||22));
  document.documentElement.style.setProperty('--transcript-size',font+'px');
  fontSizeControl.value=String(font);
  try{localStorage.setItem('dll_font_size',String(font))}catch{}
 }
-try{applyTranscriptFont(localStorage.getItem('dll_font_size')||'20')}catch{applyTranscriptFont('20')}
+try{applyTranscriptFont(localStorage.getItem('dll_font_size')||'22')}catch{applyTranscriptFont('22')}
 fontSizeControl.addEventListener('change',()=>applyTranscriptFont(fontSizeControl.value));
 const dictionary={illustrator:'插画师',ordinary:'普通的；日常的',visual:'视觉的',idea:'想法；概念',challenge:'挑战',relationship:'关系；关联',communication:'传达；沟通',complex:'复杂的',reduced:'简化；提炼',viewer:'观看者',connection:'联系；联想',experimentation:'实验性探索',creative:'创意的',process:'过程',sketching:'草图绘制',possibilities:'多种可能性',direction:'方向',obvious:'明显的'};
 // Mode-driven selection: tap a word or a full sentence; long-press to select any phrase in Safari.
@@ -28,8 +28,8 @@ function render(){
  paras.forEach((p,i)=>{
   const el=document.createElement('article');el.className='para';
   const head=document.createElement('div');head.className='meta';
-  const name=document.createElement('span');name.textContent='PARAGRAPH '+String(i+1).padStart(2,'0');
-  const btn=document.createElement('button');btn.className='small';btn.textContent=hidden.has(i)?'显示原文':'隐藏原文';
+  const name=document.createElement('span');name.textContent='第 '+(i+1)+' 段';
+  const btn=document.createElement('button');btn.textContent=hidden.has(i)?'显示原文':'隐藏原文';
   btn.onclick=()=>{hidden.has(i)?hidden.delete(i):hidden.add(i);render()};
   head.append(name,btn);el.append(head);
   const body=document.createElement('div');body.className='body';
@@ -64,7 +64,7 @@ function select(s){
  selection=s.replace(/\s+/g,' ').trim();
  if(!selection)return;
  $('selected').textContent='选中：'+selection;
- $('aiOutput').textContent='可使用「解释」（内置词库）或「复制到 Noema」（离线解释短语、整句）。';
+ $('aiOutput').textContent='选择在线 AI 或基础释义。也可在「更多」中复制到 Noema。';
 }
 render();
 $('modeBtn').onclick=()=>{selectionMode=selectionMode==='word'?'sentence':'word';render()};
@@ -153,7 +153,7 @@ $('onlineExplainBtn').onclick=async()=>{
  if(text.length>1200){$('aiOutput').textContent='一次最多解释 1200 个字符，请缩短选区。';return}
  if(!navigator.onLine){$('aiOutput').textContent='当前离线。请使用「基础释义」或复制到 Noema。';return}
  if(!onlineEndpoint||!onlineAccessToken){
-  $('aiOutput').textContent='在线 AI 尚未连接。请先点击顶部「在线 AI 设置」。';
+  $('aiOutput').textContent='在线 AI 尚未连接。请在「设置」中连接在线 AI。';
   openModal('onlineSettingsModal');return;
  }
  if(onlineExplaining)return;
@@ -173,16 +173,84 @@ $('onlineExplainBtn').onclick=async()=>{
   const data=await response.json();
   if(!response.ok)throw Error(data.error||'HTTP '+response.status);
   if(typeof data.answer!=='string')throw Error('响应中缺少解释文字');
-  $('aiOutput').textContent=data.answer;
+  renderOnlineAnswer(data.answer);
  }catch(e){
   $('aiOutput').textContent='在线解释未成功：'+(e.name==='AbortError'?'连接超时':e.message||String(e))+'。你的原文与手写不会受到影响。';
  }finally{clearTimeout(timer);onlineExplaining=false;$('onlineExplainBtn').disabled=false}
 };
 
+// Render emphasis without interpreting model output as HTML.
+function renderOnlineAnswer(answer){
+ const output=$('aiOutput');
+ const parts=answer.split(/(\*\*[^*\n]+\*\*)/);
+ const formatted=parts.map(part=>{
+  if(!part.startsWith('**')||!part.endsWith('**')||part.length<5)return document.createTextNode(part);
+  const strong=document.createElement('strong');
+  strong.textContent=part.slice(2,-2);
+  return strong;
+ });
+ output.replaceChildren(...formatted);
+ output.scrollTop=0;
+}
+
 async function explain(){if(!selection)return;$('aiOutput').textContent='正在解释…';if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个设计或艺术相关的原创英语例句。不要声称来自纪录片原文。'},{role:'user',content:selection}],temperature:0.2,max_tokens:280});$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch(e){$('aiOutput').textContent='本地 AI 出错：'+e.message+'\n改用基础释义。\n'}}let meaning=dictionary[selection.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${selection}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${selection}」不在内置基础词库。点击「复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
-function openModal(id){$(id).classList.add('open')}document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).classList.remove('open'));$('importBtn').onclick=()=>openModal('importModal');$('aiBtn').onclick=()=>{openModal('aiModal');checkGPU()};$('subtitleFile').onchange=async e=>{$('sourceText').value=await e.target.files[0].text()};function normalize(t){return t.replace(/^WEBVTT.*$/gm,'').replace(/^\d+\s*$/gm,'').replace(/^\d\d:\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/^\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/<[^>]+>/g,'').split(/\n\s*\n/).map(s=>s.trim().replace(/\n/g,' ')).filter(Boolean)}$('doImport').onclick=()=>{let t=$('sourceText').value.trim();if(!t)return;paras=normalize(t);hidden=new Set(paras.map((_,i)=>i));localStorage.setItem('dll_paras',JSON.stringify(paras));render();scheduleSave();$('importModal').classList.remove('open')};
-const audio=$('audio');let audioURL=null,a=null,b=null,loop=false;$('audioFile').onchange=e=>{if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(e.target.files[0]);audio.src=audioURL};$('speed').onchange=e=>audio.playbackRate=+e.target.value;$('back').onclick=()=>audio.currentTime=Math.max(0,audio.currentTime-5);$('setA').onclick=()=>{a=audio.currentTime;$('setA').textContent='A '+a.toFixed(1)};$('setB').onclick=()=>{b=audio.currentTime;$('setB').textContent='B '+b.toFixed(1)};$('loop').onclick=()=>{loop=!loop;$('loop').textContent='循环:'+(loop?'开':'关')};audio.ontimeupdate=()=>{if(loop&&a!==null&&b!==null&&b>a&&audio.currentTime>=b)audio.currentTime=a};
-canvas=$('ink');ctx=canvas.getContext('2d');function resize(){let rect=$('paper').getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);redraw()}function redraw(){let w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.fillStyle='#f8f9f4';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#d9e0dc';ctx.lineWidth=1;for(let y=35;y<h;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}for(let s of strokes){ctx.strokeStyle=s.erase?'#f8f9f4':s.color;ctx.lineWidth=s.erase?18:2.5;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();s.points.forEach(([x,y],i)=>i?ctx.lineTo(x*w,y*h):ctx.moveTo(x*w,y*h));ctx.stroke()}}function pos(e){let r=canvas.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]}canvas.onpointerdown=e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);current={color:pen,erase,points:[pos(e)]};strokes.push(current);redraw()};canvas.onpointermove=e=>{if(!current)return;current.points.push(pos(e));redraw()};canvas.onpointerup=()=>{current=null;hasEditedInk=true;scheduleSave()};canvas.onpointercancel=()=>{current=null;hasEditedInk=true;scheduleSave()};new ResizeObserver(resize).observe($('paper'));document.querySelectorAll('[data-color]').forEach(el=>el.onclick=()=>{pen=el.dataset.color;erase=false});$('penBtn').onclick=()=>erase=false;$('eraserBtn').onclick=()=>erase=true;$('undoBtn').onclick=()=>{strokes.pop();redraw();hasEditedInk=true;scheduleSave()};$('clearBtn').onclick=()=>{if(confirm('确定清空手写区域？')){strokes=[];redraw();hasEditedInk=true;scheduleSave()}};
+const pageRegions=document.querySelectorAll('body > header, body > main');
+let activeModal=null;
+let modalTrigger=null;
+
+function openModal(id){
+ if(activeModal){
+  activeModal.classList.remove('open');
+ }else{
+  modalTrigger=document.activeElement;
+  pageRegions.forEach(region=>{region.inert=true});
+ }
+ activeModal=$(id);
+ activeModal.classList.add('open');
+ activeModal.querySelector('.dialog').focus();
+}
+
+function closeModal(id){
+ if(activeModal?.id!==id)return;
+ activeModal.classList.remove('open');
+ activeModal=null;
+ pageRegions.forEach(region=>{region.inert=false});
+ modalTrigger?.focus();
+ modalTrigger=null;
+}
+
+document.querySelectorAll('[data-open]').forEach(button=>{
+ button.addEventListener('click',()=>openModal(button.dataset.open));
+});
+document.querySelectorAll('[data-close]').forEach(button=>{
+ button.addEventListener('click',()=>closeModal(button.dataset.close));
+});
+document.querySelectorAll('.modal').forEach(modal=>{
+ const dialog=modal.querySelector('.dialog');
+ dialog.tabIndex=-1;
+ dialog.setAttribute('role','dialog');
+ dialog.setAttribute('aria-modal','true');
+ const heading=dialog.querySelector('h2');
+ if(!heading.id)heading.id=modal.id+'Title';
+ dialog.setAttribute('aria-labelledby',heading.id);
+ modal.addEventListener('click',event=>{if(event.target===modal)closeModal(modal.id)});
+});
+document.addEventListener('keydown',event=>{
+ if(event.key==='Escape'&&activeModal)closeModal(activeModal.id);
+});
+$('importBtn').onclick=()=>openModal('importModal');$('aiBtn').onclick=()=>{openModal('aiModal');checkGPU()};$('subtitleFile').onchange=async e=>{$('sourceText').value=await e.target.files[0].text()};function normalize(t){return t.replace(/^WEBVTT.*$/gm,'').replace(/^\d+\s*$/gm,'').replace(/^\d\d:\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/^\d\d:\d\d[.,]\d+\s*-->.*$/gm,'').replace(/<[^>]+>/g,'').split(/\n\s*\n/).map(s=>s.trim().replace(/\n/g,' ')).filter(Boolean)}$('doImport').onclick=()=>{let t=$('sourceText').value.trim();if(!t)return;paras=normalize(t);hidden=new Set(paras.map((_,i)=>i));localStorage.setItem('dll_paras',JSON.stringify(paras));render();scheduleSave();closeModal('importModal')};
+const audio=$('audio');let audioURL=null,a=null,b=null,loop=false;$('audioFile').onchange=e=>{const file=e.target.files[0];if(!file)return;if(audioURL)URL.revokeObjectURL(audioURL);audioURL=URL.createObjectURL(file);audio.src=audioURL;a=b=null;loop=false;$('setA').textContent='设 A 点';$('setB').textContent='设 B 点';$('loop').textContent='循环：关'};$('speed').onchange=e=>audio.playbackRate=+e.target.value;$('back').onclick=()=>audio.currentTime=Math.max(0,audio.currentTime-5);$('setA').onclick=()=>{a=audio.currentTime;$('setA').textContent='A '+a.toFixed(1)};$('setB').onclick=()=>{b=audio.currentTime;$('setB').textContent='B '+b.toFixed(1)};$('loop').onclick=()=>{loop=!loop;$('loop').textContent='循环:'+(loop?'开':'关')};audio.ontimeupdate=()=>{if(loop&&a!==null&&b!==null&&b>a&&audio.currentTime>=b)audio.currentTime=a};
+canvas=$('ink');ctx=canvas.getContext('2d');function resize(){let rect=$('paper').getBoundingClientRect(),dpr=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(rect.width*dpr);canvas.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);redraw()}function redraw(){let w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);ctx.fillStyle='#f8f9f4';ctx.fillRect(0,0,w,h);ctx.strokeStyle='#d9e0dc';ctx.lineWidth=1;for(let y=35;y<h;y+=30){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke()}for(let s of strokes){ctx.strokeStyle=s.erase?'#f8f9f4':s.color;ctx.lineWidth=s.erase?18:2.5;ctx.lineJoin='round';ctx.lineCap='round';ctx.beginPath();s.points.forEach(([x,y],i)=>i?ctx.lineTo(x*w,y*h):ctx.moveTo(x*w,y*h));ctx.stroke()}}function pos(e){let r=canvas.getBoundingClientRect();return [(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]}canvas.onpointerdown=e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);current={color:pen,erase,points:[pos(e)]};strokes.push(current);redraw()};canvas.onpointermove=e=>{if(!current)return;current.points.push(pos(e));redraw()};canvas.onpointerup=()=>{current=null;hasEditedInk=true;scheduleSave()};canvas.onpointercancel=()=>{current=null;hasEditedInk=true;scheduleSave()};new ResizeObserver(resize).observe($('paper'));const inkColors=document.querySelectorAll('[data-color]');
+function setInkTool(erasing){
+ erase=erasing;
+ $('penBtn').setAttribute('aria-pressed',String(!erase));
+ $('eraserBtn').setAttribute('aria-pressed',String(erase));
+ inkColors.forEach(button=>button.setAttribute('aria-pressed',String(!erase&&button.dataset.color===pen)));
+}
+inkColors.forEach(button=>button.onclick=()=>{pen=button.dataset.color;setInkTool(false)});
+$('penBtn').onclick=()=>setInkTool(false);
+$('eraserBtn').onclick=()=>setInkTool(true);
+$('undoBtn').onclick=()=>{strokes.pop();redraw();hasEditedInk=true;scheduleSave()};$('clearBtn').onclick=()=>{if(confirm('确定清空手写区域？')){strokes=[];redraw();hasEditedInk=true;scheduleSave()}};
 function download(filename,blob){let url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}$('pngBtn').onclick=()=>canvas.toBlob(blob=>download('dictation.png',blob),'image/png');function backup(){return {version:4,paras,strokes,phrases:JSON.parse(localStorage.getItem('dll_phrases')||'[]'),created:new Date().toISOString()}}$('jsonBtn').onclick=()=>download('design-listening-lab-backup.json',new Blob([JSON.stringify(backup(),null,2)],{type:'application/json'}));
 function openDB(){return new Promise((resolve,reject)=>{let r=indexedDB.open('design-listening-lab',1);r.onupgradeneeded=()=>r.result.createObjectStore('notes');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}let saveTimer=null,hasEditedInk=false;
 async function save(){try{db=db||await openDB();await new Promise((resolve,reject)=>{const tx=db.transaction('notes','readwrite');tx.objectStore('notes').put(backup(),'latest');tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('transaction aborted'));});$('studyInfo').textContent='已保存笔迹和学习数据 · 建议定期导出 JSON'}catch(e){$('studyInfo').textContent='保存失败，请导出 JSON：'+e.message}}
@@ -202,7 +270,7 @@ function setReadingMode(reading){
  }
  layout.classList.toggle('reading-mode',reading);
  viewToggle.setAttribute('aria-pressed',String(reading));
- viewToggle.textContent=reading?'展开手写 · 听写模式':'收起手写 · 阅读模式';
+ viewToggle.textContent=reading?'返回听写':'阅读模式';
  // Canvas resize is observed and normalized strokes remain available on reopening.
  try{localStorage.setItem('dll_reading_mode',reading?'1':'0')}catch{}
 }
@@ -250,11 +318,11 @@ $('installAI').onclick=async()=>{
   aiReport('失败',(e?.message||String(e))+'。可以继续使用听写和 Noema；不需要重复下载原模型。');
  }finally{aiLoading=false;$('installAI').disabled=!navigator.gpu}
 };
-$('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加载模型';return}selection='visual language';$('aiModal').classList.remove('open');await explain()};async function net(){
+$('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加载模型';return}selection='visual language';closeModal('aiModal');await explain()};async function net(){
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v4.2');
+   const cache=await caches.open('design-listening-lab-v4.3');
    const core=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }

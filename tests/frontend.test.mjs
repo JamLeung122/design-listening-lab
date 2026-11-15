@@ -8,7 +8,11 @@ const online=source.slice(source.indexOf('// Online AI is optional'),source.inde
 function page({selected='visual language',connected=true}={}){
  const nodes={},stored=new Map(),calls=[];
  const context={URL,AbortController,setTimeout,clearTimeout,Error,String,
-  $:id=>nodes[id]??=( {value:'',textContent:'',disabled:false}),
+  $:id=>nodes[id]??={
+   value:'',textContent:'',disabled:false,
+   replaceChildren(...children){this.children=children;this.textContent=children.map(child=>child.textContent).join('')}
+  },
+  document:{createTextNode:textContent=>({textContent}),createElement:tagName=>({tagName,textContent:''})},
   localStorage:{getItem:k=>stored.get(k),setItem:(k,v)=>stored.set(k,v)},
   selectedTranscriptText:()=>selected,selection:'',navigator:{onLine:connected},openModal:()=>{},
   fetch:async(url,options)=>{calls.push({url,...options});return Response.json({answer:'视觉语言'})}
@@ -20,10 +24,14 @@ function page({selected='visual language',connected=true}={}){
  return {nodes,stored,calls,context,configure};
 }
 test('frontend sends only selection, keeps token in memory and renders plain text',async()=>{
- const p=page();p.configure();await p.nodes.onlineExplainBtn.onclick();
+ const p=page();p.configure();
+ const request=p.context.fetch;
+ p.context.fetch=async(...args)=>{await request(...args);return Response.json({answer:'**视觉语言** <b>plain</b>'})};
+ await p.nodes.onlineExplainBtn.onclick();
  assert.equal(p.calls.length,1);assert.deepEqual(JSON.parse(p.calls[0].body),{text:'visual language',mode:'quick'});
  assert.equal(p.calls[0].credentials,'omit');assert.equal(p.calls[0].redirect,'error');
- assert.deepEqual([...p.stored.keys()],['dll_online_endpoint']);assert.equal(p.nodes.aiOutput.textContent,'视觉语言');assert.equal(p.nodes.onlineExplainBtn.disabled,false);
+ assert.deepEqual([...p.stored.keys()],['dll_online_endpoint']);assert.equal(p.nodes.aiOutput.textContent,'视觉语言 <b>plain</b>');
+ assert.deepEqual(p.nodes.aiOutput.children.filter(child=>child.tagName),[{tagName:'strong',textContent:'视觉语言'}]);assert.equal(p.nodes.onlineExplainBtn.disabled,false);
 });
 test('offline, empty and oversized selections never call network',async()=>{
  for(const options of [{connected:false},{selected:''},{selected:'a'.repeat(1201)}]){
