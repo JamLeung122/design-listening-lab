@@ -1,30 +1,33 @@
-# Design Listening Lab — optional online AI backend
+# Design Listening Lab — Qwen online explanation (optional)
 
-This backend is optional. The iPad PWA remains offline-first and works without any API subscription or server.
+The app keeps its offline transcript, audio, handwriting and Noema backup. Its **在线 AI 解释** button needs a backend URL and a private access token; the backend is **not automatically deployed with GitHub Pages**.
 
-## Why a backend?
+## Setup with Alibaba Bailian Qwen (no OpenAI API required)
 
-GitHub Pages is a static host. Never embed an OpenAI API key in app.js, frontend forms, GitHub secrets exposed to Pages, or a URL. This Cloudflare Worker forwards a selected English phrase to the OpenAI Responses API, holding the provider key in a **server secret**.
+1. Create an Alibaba Cloud / 百炼 account: https://bailian.console.aliyun.com/ . Choose the **华北2（北京）** model region if you want to use the applicable Mainland China newcomer model free quota. Confirm the model's eligibility and remaining quota in your actual dashboard. Newcomer free quotas can expire after 90 days. **Enable 免费额度用完即停** before testing, or overage may be billed.
+2. Generate a 百炼 API key in the **same region**. **Do not paste it in GitHub, the PWA frontend or ChatGPT.** It belongs in the Cloudflare Worker server secret.
+3. Create a Cloudflare account: https://dash.cloudflare.com/ . On your Mac install Node.js; use the terminal:
+   ```sh
+   cd backend
+   npx wrangler login
+   npx wrangler deploy
+   npx wrangler secret put DASHSCOPE_API_KEY
+   npx wrangler secret put APP_ACCESS_TOKEN
+   ```
+   At the first secret prompt, paste the 百炼 key; at the second, create a separate long random access passphrase. Don't reuse provider credentials.
+4. In `backend/wrangler.toml`, `QWEN_REGION = "beijing"` is the default, and `QWEN_MODEL = "qwen-turbo"`. Make sure the selected model is available and has applicable quota in your region. If you change variables, redeploy the Worker.
+5. Copy your **HTTPS Worker URL** and append `/explain`, for example `https://your-worker.your-subdomain.workers.dev/explain`.
+6. Open https://jamleung122.github.io/design-listening-lab/ on the iPad. Tap **在线 AI 设置**. Enter the Worker URL and **APP_ACCESS_TOKEN** (not your 百炼 key), save, select some English, and tap **在线 AI 解释**.
 
-## One-time deployment (requires your own Cloudflare account and OpenAI API billing)
+**No deployment is currently provisioned by the repository alone.** The required credentials and Cloudflare permissions must be configured by the account owner. This backend uses Qwen if `DASHSCOPE_API_KEY` is present; OpenAI remains an optional alternative only if you configure `OPENAI_API_KEY` instead.
 
-1. On a Mac, install Node.js and run `cd backend && npx wrangler login`.
-2. Deploy with `npx wrangler deploy` from the `backend` folder.
-3. Set two Worker secrets (same folder):
-   - `npx wrangler secret put OPENAI_API_KEY` — paste your **OpenAI API** key at the secure prompt.
-   - `npx wrangler secret put APP_ACCESS_TOKEN` — choose a long, random private application passphrase distinct from your OpenAI key.
-4. Find the resulting HTTPS Worker address in Cloudflare (usually `https://<worker>.<account>.workers.dev`); add `/explain`.
-5. On iPad, open Design Listening Lab and choose **在线 AI 设置**. Enter that address and the **APP_ACCESS_TOKEN**, **not** the OpenAI API key. Then select a word/phrase and press **在线 AI 解释**.
+## Security and billing safeguards
 
-### Privacy and safeguards
+- The provider key is a server-only Cloudflare Worker secret; never put it in the browser or public repository.
+- The frontend saves the Worker URL only. The app access passphrase stays in page memory until reload.
+- Worker accepts just explicitly selected English (maximum 1200 characters), never entire transcripts, audio or handwritten notes. The Worker does not persist requests or responses.
+- CORS/origin check is *not* authentication; an access token is required. Use a strong one, rate limiting, and provider-side usage alerts or caps. Cloudflare/free quotas and model provider quotas are independent.
+- Sending text to the online API sends selected text to the third-party model provider; do not send sensitive or confidential materials.
+- When offline or before setup, **基础释义**, writing, and **复制到 Noema** remain usable.
 
-- Only selected text is sent when the online-explain button is tapped. No audio, handwriting, transcript collection, or note history is uploaded.
-- Frontend stores only the Worker URL, not the token. Reloading the page requires re-entering the application token.
-- Worker checks the site origin, requires the application token, limits input to 1,200 characters and output tokens, disables response storage where supported by the provider, and times out upstream requests.
-- The application passphrase is **not** full user authentication. A public Worker endpoint can still be probed. Use a strong passphrase, Cloudflare rate limiting, per-project OpenAI budget limits and key rotation. Origin/CORS checks alone do not protect backend credentials.
-- Usage of OpenAI API is **separately billed from ChatGPT subscriptions**. Server setup must be completed before the UI's online AI button can work.
-- Offline features, including writing and cached transcripts, remain available without this server.
-
-## Validation
-
-Run `node --check backend/worker.js` and `node --check app.js` (from repository root). Never commit `.dev.vars` or API credentials.
+Official docs: https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope and https://docs.bailian.console.aliyun.com/zh/model-studio/new-free-quota .
