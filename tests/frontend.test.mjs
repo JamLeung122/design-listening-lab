@@ -217,3 +217,25 @@ test('merging only carries an already learned mark when both segments were learn
  assert.equal(vm.runInContext("JSON.stringify([...mergeStudyFlags(new Set([0,2,3]),1)])",context),'[0,2]');
  assert.equal(vm.runInContext("JSON.stringify([...mergeStudyFlags(new Set([1,2]),1)])",context),'[1]');
 });
+
+
+test('episode one defaults to 14–29 and leaves explicit timings and trim boundaries intact',()=>{
+ const context=lessonFunctions();
+ const result=JSON.parse(vm.runInContext(`
+  const segments=[{text:'First'},{text:'Second'}];
+  const windows=[{start:10,end:60}];
+  const manual=[];
+  JSON.stringify({
+   aligned:alignSegments(segments,withEpisodeOnePreset(segments,manual,windows,true),windows,60),
+   noMutation:manual.length,
+   disabled:withEpisodeOnePreset(segments,manual,windows,false),
+   clipped:withEpisodeOnePreset(segments,manual,[{start:15,end:60}],true),
+   subtitle:withEpisodeOnePreset([{text:'First',start:4,end:8}],manual,windows,true),
+   edited:withEpisodeOnePreset(segments,[{start:12,end:20}],windows,true)
+  })
+ `,context));
+ assert.deepEqual(result,{
+  aligned:[{start:14,end:29,kind:'第一集预设'},{start:29,end:60,kind:'承接估算'}],
+  noMutation:0,disabled:[],clipped:[],subtitle:[],edited:[{start:12,end:20}]
+ });
+});

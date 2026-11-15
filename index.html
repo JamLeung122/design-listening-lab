@@ -8,7 +8,7 @@
   <title>Design Listening Lab</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="listening-lab-release" content="4.9">
+  <meta name="listening-lab-release" content="4.10">
   <!-- Keep layout with the HTML so Safari can render it even when asset caches disagree. -->
   <style>
 :root {
@@ -354,6 +354,7 @@ body:has(.modal.open) { overflow: hidden; }
   </div></div>
   <div class="modal" id="audioTools"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="audioToolsTitle">
     <h2 id="audioToolsTitle">播放设置</h2>
+    <label class="field"><input type="checkbox" id="episodeOnePreset" checked> 第一集第 1 段预设（00:14–00:29）</label>
     <label class="field">速度 <select id="speed"><option>.75</option><option selected>1</option><option>1.25</option><option>1.5</option></select></label>
     <p class="help">在播放位置设置 A 点和 B 点，即可循环听这一段。</p>
     <div class="row">
@@ -558,6 +559,17 @@ function isTimed(range){
  return !!range&&Number.isFinite(range.start)&&Number.isFinite(range.end)&&range.end>range.start;
 }
 
+function withEpisodeOnePreset(segments,manual,windows,enabled){
+ if(!enabled||!segments.length||isTimed(segments[0])||isTimed(manual[0]))return manual;
+ const firstTimed=manual.slice(1).find(isTimed);
+ if(firstTimed&&firstTimed.start<29)return manual;
+ const preset=clipRange(14,29,windows);
+ if(!preset||preset.start!==14||preset.end!==29)return manual;
+ const ranges=manual.slice();
+ ranges[0]={start:14,end:29,kind:'第一集预设'};
+ return ranges;
+}
+
 function alignSegments(segments,manual,windows,duration){
  const ranges=new Array(segments.length).fill(null);
  const allTimed=segments.every(isTimed);
@@ -638,12 +650,13 @@ let paras=segments.map(segment=>segment.text);
 let learned=new Set((Array.isArray(savedLesson?.learned)?savedLesson.learned:[]).filter(i=>Number.isInteger(i)&&i>=0&&i<paras.length));
 let savedAudioKey=typeof savedLesson?.audioKey==='string'?savedLesson.audioKey:null;
 let adjustments=Array.isArray(savedLesson?.adjustments)?savedLesson.adjustments:[];
+let episodeOnePreset=savedLesson?.episodeOnePreset!==false;
 let audioFileKey=null,alignedRanges=[],audioDuration=NaN;
 let audioTrim=null,keptWindows=[];
 let hidden=new Set(!savedLesson&&savedTranscript?.length?paras.map((_,i)=>i):[]),selection='',engine=null,modelName='',aiLoading=false,strokes=[],current=null,pen='#1d2939',erase=false,ctx,canvas,db;
 
 function lessonData(){
- return {segments,learned:[...learned],audioKey:savedAudioKey,adjustments,audioTrim:audioTrim&&{file:audioFileKey,...audioTrim}};
+ return {segments,learned:[...learned],audioKey:savedAudioKey,adjustments,episodeOnePreset,audioTrim:audioTrim&&{file:audioFileKey,...audioTrim}};
 }
 
 function saveLesson(){
@@ -794,6 +807,7 @@ function mergeNextSegment(index){
   start:timed?first.start:null,end:timed?Math.max(first.end,second.end):null
  });
  paras=segments.map(segment=>segment.text);
+ if(index===0){episodeOnePreset=false;$("episodeOnePreset").checked=false}
  if(adjustments.length>index){
   adjustments.splice(index,2,combined);
  }
@@ -1086,12 +1100,14 @@ function refreshAudioRanges(){
  $('trimAudioBtn').hidden=!ready;
  keptWindows=ready?trimWindows(audioTrim,audioDuration):[];
  const manual=audioFileKey===savedAudioKey?adjustments:[];
- alignedRanges=ready?alignSegments(segments,manual,keptWindows,audioDuration):[];
+ const anchors=ready?withEpisodeOnePreset(segments,manual,keptWindows,episodeOnePreset):[];
+ alignedRanges=ready?alignSegments(segments,anchors,keptWindows,audioDuration):[];
  if(!audioURL){reportLesson('导入对应的 M4A 后，即可逐段播放。');return}
  if(!Number.isFinite(audioDuration)){reportLesson('正在读取音频…');return}
  const timed=segments.some(segment=>Number.isFinite(segment.start));
  const text=timed?'按字幕时间播放，可逐段校准。':'纯文本按字数估算位置，可逐段校准。';
- reportLesson(audioTrim?'已跳过标记区间。'+text:text);
+ const preset=alignedRanges[0]?.kind==='第一集预设';
+ reportLesson((audioTrim?'已跳过标记区间。':'')+(preset?'第 1 段预设 00:14–00:29。':'')+text);
 }
 
 function stopSegment(){
@@ -1306,6 +1322,14 @@ for(const event of ['play','pause','seeked','ratechange']){
  audio.addEventListener(event,()=>{enforcePlaybackBounds();syncSegmentPlayback();syncTimingPreview();syncTrimPreview()});
 }
 audio.addEventListener('ended',stopSegment);
+$('episodeOnePreset').checked=episodeOnePreset;
+$('episodeOnePreset').onchange=()=>{
+ episodeOnePreset=$('episodeOnePreset').checked;
+ audio.pause();stopSegment();
+ refreshAudioRanges();render();
+ if(!saveLesson())reportLesson('预设开关已应用到当前页面，暂时无法保存。');
+ scheduleSave();
+};
 $('speed').onchange=()=>audio.playbackRate=+$('speed').value;
 $('back').onclick=()=>audio.currentTime=Math.max(activeSegment?.start??0,audio.currentTime-5);
 $('setA').onclick=()=>{a=audio.currentTime;$('setA').textContent='A '+a.toFixed(1)};
@@ -1406,7 +1430,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v4.9');
+   const cache=await caches.open('design-listening-lab-v4.10');
    const core=['./index.html','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
