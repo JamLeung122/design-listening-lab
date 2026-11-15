@@ -139,7 +139,7 @@ $('saveOnlineSettings').onclick=()=>{
   if(url.protocol!=='https:' || url.pathname!=='/explain' || url.username || url.password || url.search || url.hash)throw Error('invalid');
  }catch{$('onlineConfigStatus').textContent='请输入 HTTPS 地址，并确保路径以 /explain 结尾。';return}
  const token=$('onlineToken').value.trim();
- if(!token){$('onlineConfigStatus').textContent='请输入 APP_ACCESS_TOKEN 访问口令（不是 OpenAI API Key）。';return}
+ if(!token){$('onlineConfigStatus').textContent='请输入 APP_ACCESS_TOKEN 访问口令（不是百炼 API Key）。';return}
  onlineEndpoint=url.href;
  onlineAccessToken=token;
  try{localStorage.setItem('dll_online_endpoint',onlineEndpoint)}catch{}
@@ -252,7 +252,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v4.0');
+   const cache=await caches.open('design-listening-lab-v4.1');
    const core=['./index.html','./app.js','./safe-area.css','./diagnostics.js','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
