@@ -3,242 +3,223 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#141415">
+  <meta name="theme-color" content="#fcfcf8">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Design Listening Lab</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="listening-lab-release" content="4.11">
+  <meta name="listening-lab-release" content="5.0">
   <!-- Keep layout with the HTML so Safari can render it even when asset caches disagree. -->
   <style>
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  background: #141415;
-  color: #f1eff3;
-  --surface: #1b1b1d;
-  --raised: #262628;
-  --line: #38363b;
-  --muted: #b8b3bd;
-  --accent: #d8c2fc;
+  background: #eeeee8;
+  color: #202d2b;
+  --page: #eeeee8;
+  --surface: #fcfcf8;
+  --raised: #f2f3ed;
+  --line: #d8ddd3;
+  --muted: #545e57;
+  --accent: #14554b;
+  --accent-soft: #e0ede7;
+  --ink: #202d2b;
+  --radius: 15px;
 }
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; min-width: 0; }
-body { min-height: 100vh; min-height: 100dvh; }
-button, .button, input, textarea, select { font: inherit; }
-button, .button, select {
-  min-height: 44px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: inherit;
-  background: var(--raised);
-  padding: 7px 11px;
-  font-size: .875rem;
+body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+button, input, select, textarea, .button { font: inherit; }
+button, select, summary.button, label.button {
+  min-height: 44px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--raised); color: var(--ink); padding: 7px 11px;
+  font-size: .86rem; font-weight: 610;
 }
-button, .button { cursor: pointer; touch-action: manipulation; }
-.button { display: inline-grid; place-items: center; }
-button:disabled { opacity: .55; cursor: wait; }
-button.quiet, .button.quiet { background: transparent; }
-button.primary { background: var(--accent); color: #261a3b; border-color: transparent; font-weight: 700; }
-button[aria-pressed="true"] { color: #eddefe; background: #392b50; border-color: #ae8ee0; }
-:focus-visible { outline: 2px solid #c6a5f4; outline-offset: 2px; }
-@media (hover: hover) { button:hover:not(:disabled), .button:hover { border-color: #aaa0b6; } }
-button.danger { color: #ffc0bc; }
+button, summary.button, label.button { cursor: pointer; touch-action: manipulation; }
+button:disabled, input:disabled { opacity: .55; }
+button.quiet, summary.button { background: transparent; }
+button.primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: #a8c7ba; }
+:focus-visible { outline: 2px solid #166e62; outline-offset: 2px; }
+@media (hover: hover) { button:hover:not(:disabled), summary:hover, label.button:hover { border-color: #76978c; } }
+h1,h2,h3,p { margin: 0; }
 a { color: var(--accent); }
-h1, h2, h3, p { margin: 0; }
-.top, .layout {
-  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
-}
+.top, .layout, .audio-dock-inner { padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
 .top {
-  padding-top: max(13px, env(safe-area-inset-top, 0px));
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
-  display: flex;
-  gap: 10px 24px;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
+  flex: none; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+  gap: 10px 18px; padding-top: max(12px, env(safe-area-inset-top, 0px)); padding-bottom: 11px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
 }
-h1 { font-size: clamp(1.25rem, 2.4vw, 1.625rem); line-height: 1.15; letter-spacing: -.025em; }
-.identity p { margin-top: 5px; color: var(--muted); font-size: .8rem; }
-.top-actions, .row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-.top-actions .status { margin-right: 4px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 99px; }
+.identity { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.brand-mark {
+  width: 34px; height: 38px; flex: none; display: flex; justify-content: center; align-items: center; gap: 3px;
+  border-radius: 9px; background: #174940;
+}
+.brand-mark i { width: 3px; border-radius: 4px; background: #d9ebdf; height: 12px; }
+.brand-mark i:nth-child(2) { height: 22px; }
+.brand-mark i:nth-child(3) { height: 16px; }
+h1 { font-size: clamp(1.125rem, 2.15vw, 1.55rem); letter-spacing: -.035em; line-height: 1.12; }
+.identity p { margin-top: 4px; color: var(--muted); font-size: .76rem; }
+.top-actions, .row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.top-actions { justify-content: flex-end; }
+.workspace-modes { display: flex; flex-wrap: wrap; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 11px; background: var(--raised); }
+.workspace-modes button { background: transparent; border-color: transparent; min-width: 51px; }
+.workspace-modes button[aria-pressed="true"] { background: var(--surface); color: var(--accent); border-color: var(--line); box-shadow: 0 1px 2px #22352c16; }
+#network { white-space: nowrap; }
 .status, .help, .hint, .paper-status, .pill { color: var(--muted); font-size: .8125rem; line-height: 1.5; }
 .layout {
-  display: grid;
-  gap: 12px;
-  padding-top: 12px;
-  padding-bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  width: 100%; max-width: 1440px; margin-inline: auto; min-height: 0; flex: 1; display: grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr); grid-template-rows: minmax(0,1fr);
+  gap: 14px; padding-block: 14px;
 }
+.layout[data-workspace="reading"], .layout[data-workspace="writing"] { max-width: 1050px; grid-template-columns: minmax(0,1fr); }
+.layout[data-workspace="reading"] #handwritingPane, .layout[data-workspace="writing"] .left { display: none; }
 .panel {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  background: var(--surface);
+  min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface);
+  box-shadow: 0 2px 7px #263a2b0a;
 }
-.panel-header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 5px 10px; padding: 7px 12px; border-bottom: 1px solid var(--line); }
-.panel-header h2 { font-size: 1.0625rem; line-height: 1.35; }
-.panel-header > *, .top-actions > *, .row > * { min-width: 0; }
-.transcript-stage {
-  position: relative;
-  min-height: 280px;
-  height: 54vh;
-  height: 54dvh;
+.panel-header {
+  flex: none; display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between;
+  gap: 6px 10px; padding: 9px 14px; border-bottom: 1px solid var(--line);
 }
-.content {
-  height: 100%;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 8px 12px 12px;
-}
+.panel-header h2 { font-size: 1rem; letter-spacing: -.01em; line-height: 1.3; }
+.panel-title { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; min-width: 0; }
+.progress-chip { color: var(--accent); background: var(--accent-soft); padding: 3px 8px; border-radius: 99px; font-size: .74rem; white-space: nowrap; }
+.transcript-stage { position: relative; flex: 1; min-height: 0; }
+.content { height: 100%; overflow: auto; overscroll-behavior: contain; padding: 10px 14px 18px; }
 .transcript-stage[data-showing-result="true"] .content { visibility: hidden; }
-.hint { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 3px 8px; margin-bottom: 8px; }
-.para { background: #222224; border: 1px solid #363338; border-radius: 9px; padding: 8px 12px 12px; }
+.lesson-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 8px; }
+.lesson-bar .hint { flex: 1 1 148px; }
+#lessonStatus { margin-bottom: 8px; overflow-wrap: anywhere; }
+.para { max-width: 69ch; margin-inline: auto; position: relative; padding: 10px 13px 12px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
 .para + .para { margin-top: 8px; }
-.para .meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px; margin-bottom: 4px; color: var(--muted); font-size: .75rem; }
-.para .meta button { background: transparent; }
-.segment-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.para[data-active="true"] { border-color: #629587; box-shadow: inset 3px 0 #2b7768; }
+.para .meta { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin-bottom: 5px; }
+.segment-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .segment-toolbar button { padding-inline: 8px; }
-.segment-index { color: var(--accent); font-size: .875rem; font-weight: 700; }
-.para[data-learned="true"] .segment-index { color: #a8d7b3; }
-.para button[aria-pressed="true"] { background: #21372a; border-color: #608c6b; color: #c6efcf; }
-.segment-foot { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px; margin-top:5px; }
-.segment-time { color: var(--muted); font-size: .75rem; }
-.segment-foot .quiet { color:var(--muted); font-size:.75rem; }
-.lesson-bar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
-#lessonStatus { overflow-wrap:anywhere; }
-.timing-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; }
-.time-field { display:grid; gap:4px; color:var(--muted); font-size:.875rem; }
-.timing-fields input { width:100%; min-height:44px; padding:8px; background:#151517; color:inherit; border:1px solid var(--line); border-radius:8px; font-size:16px; }
-.para .body { font-size: var(--transcript-size, 22px); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+.segment-toolbar .segment-play { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+.segment-index { color: var(--muted); font-size: .83rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.para[data-learned="true"] .segment-index { color: var(--accent); }
+.segment-options { margin: 0; }
+.segment-options { min-width: 44px; }
+.segment-option-list { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 0 8px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.segment-foot { margin-top: 9px; }
+.segment-time { color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.para .body {
+  font-family: system-ui, -apple-system, sans-serif; font-size: var(--transcript-size, 22px);
+  line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text;
+}
 .para .hiddenText { font-size: .875rem; color: var(--muted); }
 .word { border-radius: 3px; cursor: pointer; }
-@media (hover: hover) { .word:hover { background: #443651; } }
-.sentence-mode .sentence { cursor: pointer; border-bottom: 1px dotted #ad95cb; }
-#paragraphs ::selection { background: #654c91; color: white; }
-.note { border-top: 1px solid var(--line); padding: 10px 12px; }
-.note-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 8px; }
-.note-heading h3 { color: var(--muted); font-size: .8125rem; font-weight: 600; }
-#selected, #resultSelection {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-#selected { color: #ededee; font-size: .9375rem; font-weight: 650; }
-.result-panel {
-  position: absolute;
-  inset: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: #1b191e;
-}
-.result-panel[hidden] { display: none; }
-.result-header {
-  display: flex;
-  flex: none;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 12px 16px 10px;
-  border-bottom: 1px solid var(--line);
-}
+@media (hover: hover) { .word:hover { background: var(--accent-soft); } }
+.sentence-mode .sentence { cursor: pointer; border-bottom: 1px dotted #358975; }
+#paragraphs ::selection { background: #b9e2d1; color: #132d27; }
+.note { flex: none; border-top: 1px solid var(--line); padding: 9px 14px; background: var(--raised); }
+.note-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 6px; }
+.note-heading h3 { color: var(--muted); font-size: .78rem; font-weight: 640; }
+#selected, #resultSelection { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+#selected { color: var(--ink); font-size: .93rem; font-weight: 650; }
+.result-panel { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--surface); }
+.result-header { flex: none; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 11px 14px; border-bottom: 1px solid var(--line); }
 .result-header > div { min-width: 0; }
-.result-header h3 { font-size: .8125rem; color: var(--accent); margin-bottom: 4px; }
-.result-header button { flex: none; }
-#resultSelection { font-size: 1.1875rem; font-weight: 650; line-height: 1.3; }
-#aiOutput {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
-  padding: 15px 16px 24px;
-  font-size: 1.0625rem;
-  line-height: 1.75;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-#aiOutput strong { color: #e3d0fc; }
-.ink-bar { padding: 7px 12px; }
+.result-header h3 { font-size: .81rem; color: var(--accent); margin-bottom: 4px; }
+#resultSelection { font-size: 1.2rem; font-weight: 650; line-height: 1.25; }
+#aiOutput { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 14px 16px 24px; font-size: 1.05rem; line-height: 1.72; white-space: pre-wrap; overflow-wrap: anywhere; }
+#aiOutput strong { color: var(--accent); }
+.ink-bar { flex: none; padding: 8px 12px; }
 .palette { display: inline-flex; flex-wrap: wrap; gap: 2px; }
-button.color { width: 40px; padding: 0; display: grid; place-items: center; background: transparent; border-color: transparent; }
-button.color::before { content: ""; border-radius: 50%; width: 18px; height: 18px; background: var(--ink); border: 1px solid #bdc8d7; }
-button.color[aria-pressed="true"] { border-color: #ae8ee0; background: #332942; }
-.writearea { flex: 1 1 auto; min-height: 0; display: flex; padding-inline: 10px; }
-.paper { flex: 1; min-width: 0; min-height: 220px; position: relative; border-radius: 8px; overflow: hidden; background: #f8f9f4; touch-action: none; }
+button.color { width: 44px; padding: 0; display: grid; place-items: center; background: transparent; }
+button.color::before { content: ""; border-radius: 50%; width: 17px; height: 17px; background: var(--ink-color); }
+button.color[aria-pressed="true"] { background: var(--accent-soft); border-color: #669487; }
+.writearea { flex: 1; min-height: 0; display: flex; padding-inline: 10px; }
+.paper { flex: 1; min-width: 0; position: relative; overflow: hidden; border-radius: 8px; background: #f8f9f4; border: 1px solid var(--line); touch-action: none; }
 .paper canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-.player { padding: 8px 10px 5px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; }
-.player audio { flex: 1 1 200px; width: 100%; min-width: 0; height: 40px; }
-.paper-status { padding: 0 12px 8px; overflow-wrap: anywhere; }
-#readingAudioDock { display: none; }
-.layout.reading-mode { grid-template-columns: minmax(0, 1fr); }
-.layout.reading-mode .left { width: 100%; max-width: 950px; margin-inline: auto; }
-.layout.reading-mode #handwritingPane { display: none; }
-.layout.reading-mode #readingAudioDock { display: block; border-top: 1px solid var(--line); }
+.paper-status { flex: none; padding: 7px 12px; overflow-wrap: anywhere; }
+.audio-dock { flex: none; background: #173b33; color: #f4f8f2; border-top: 1px solid #2e5a50; }
+.audio-dock-inner { max-width: 1440px; margin-inline: auto; padding-top: 8px; padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
+.player { display: grid; grid-template-columns: auto minmax(130px,1fr) auto; align-items: center; gap: 8px 14px; }
+.audio-dock button, .audio-dock select { background: #285247; border-color: #517569; color: #f4f8f2; }
+.audio-dock select { appearance: none; min-width: 66px; padding-right: 24px; background-image: linear-gradient(45deg, transparent 50%, #d8e7dc 50%), linear-gradient(135deg, #d8e7dc 50%, transparent 50%); background-position: right 15px center, right 10px center; background-size: 5px 5px; background-repeat: no-repeat; }
+.audio-dock button.play-button { color: #143a30; background: #dbece0; border-color: #dbece0; min-width: 56px; }
+.audio-dock :focus-visible { outline-color: #ddf9e7; }
+.player-controls, .player-actions { gap: 6px; }
+.player-track { min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 2px 8px; align-items: center; }
+.player-track strong { grid-column: 1/-1; font-size: .77rem; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.player-track output { color: #d8e7dc; font-variant-numeric: tabular-nums; font-size: .73rem; }
+.player-track input { width: 100%; min-width: 0; height: 28px; margin: 0; accent-color: #a7e0c5; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.visually-hidden:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
 .modal {
   position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center;
-  background: #080709c7;
-  padding: max(14px, env(safe-area-inset-top, 0px)) max(14px, env(safe-area-inset-right, 0px)) max(14px, env(safe-area-inset-bottom, 0px)) max(14px, env(safe-area-inset-left, 0px));
+  background: #1b2a23a6;
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
 }
 .modal.open { display: flex; }
-body:has(.modal.open) { overflow: hidden; }
-.dialog { width: min(100%, 530px); max-height: 100%; overflow: auto; overscroll-behavior: contain; padding: 19px; background: var(--surface); border: 1px solid #57515d; border-radius: 13px; box-shadow: 0 18px 65px #0008; }
-.dialog h2 { font-size: 1.25rem; }
-.dialog > * + * { margin-top: 12px; }
+.dialog { width: min(100%, 530px); max-height: 100%; overflow: auto; overscroll-behavior: contain; padding: 17px; background: var(--surface); border: 1px solid #aebdb1; border-radius: var(--radius); box-shadow: 0 18px 65px #14281f42; }
+.dialog h2 { font-size: 1.22rem; letter-spacing: -.02em; }
+.dialog > * + * { margin-top: 11px; }
 .dialog label.help { display: block; }
-.dialog input:is([type="password"], [type="url"]), .dialog textarea { display: block; width: 100%; background: #151517; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 16px; }
+.dialog input:is([type="password"],[type="url"]), .dialog textarea, .timing-fields input {
+  display: block; width: 100%; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 8px;
+  color: var(--ink); background: white; font-size: 16px;
+}
 .dialog input[type="file"] { max-width: 100%; }
-.dialog label.help + input { margin-top: 5px; }
-.field { display: flex; align-items: center; gap: 12px; }
+.field { display: flex; align-items: center; gap: 10px; }
 .field select { font-size: 16px; }
 .menu-actions { display: grid; gap: 6px; }
 .menu-actions button { text-align: left; }
-#sourceText { min-height: 130px; }
-#diagLog { white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; max-height: 180px; padding: 8px; font-size: .8rem; background: #151517; }
-
-@media (min-width: 820px), (min-width: 700px) and (orientation: landscape) {
-  .layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.06fr); }
+button.danger { color: #9b3a26; }
+.timing-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 8px; }
+.time-field { display: grid; gap: 4px; color: var(--muted); font-size: .875rem; }
+#sourceText { min-height: 125px; }
+#diagLog { white-space: pre-wrap; overflow-wrap: anywhere; overflow: auto; max-height: 180px; padding: 8px; font-size: .8rem; background: var(--raised); }
+@media (max-width: 899px) {
+  #viewToggle { display: none; }
+  .layout { grid-template-columns: minmax(0,1fr); gap: 0; }
+  .layout[data-workspace="split"] #handwritingPane { display: none; }
 }
-@media (min-width: 820px) and (min-height: 530px), (min-width: 700px) and (min-height: 530px) and (orientation: landscape) {
-  body { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-  .top { flex: none; }
-  .layout { flex: 1; min-height: 0; grid-template-rows: minmax(0, 1fr); }
-  .transcript-stage { flex: 1; height: auto; min-height: 0; }
-  .panel-header, .ink-bar, .player, .paper-status, .note, #readingAudioDock { flex: none; }
-  .paper { min-height: 0; }
+@media (max-width: 619px) {
+  .top, .layout, .audio-dock-inner { padding-inline: max(9px, env(safe-area-inset-left, 0px)) max(9px, env(safe-area-inset-right, 0px)); }
+  .layout { padding-block: 8px; }
+  .top { padding-block-end: 7px; }
+  #network { display: none; }
+  .player { grid-template-columns: auto minmax(0,1fr); gap: 4px 9px; }
+  .player-actions { grid-column: 1/-1; justify-content: space-between; }
+  .audio-dock-inner { padding-top: 5px; }
+  .panel-header, .note { padding-inline: 9px; }
+  .content { padding-inline: 8px; }
 }
-@media (max-width: 420px) {
-  .top, .layout { padding-inline: max(9px, env(safe-area-inset-left, 0px)) max(9px, env(safe-area-inset-right, 0px)); }
-  .top-actions .status { font-size: .75rem; }
+@media (max-height: 590px) {
+  .top { padding-block-end: 6px; }
+  .identity p { display: none; }
+  .layout { padding-block: 7px; }
+  .note { padding-block: 5px; }
+  .note-heading { margin-bottom: 4px; }
 }
   </style>
 </head>
 <body>
   <header class="top">
     <div class="identity">
-      <h1>Design Listening Lab</h1>
-      <p>Abstract · Christoph Niemann</p>
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+      <div><h1>Design Listening Lab</h1><p>Abstract · 第一集 · Christoph Niemann</p></div>
     </div>
     <div class="top-actions">
       <span id="network" class="status">检测网络…</span>
-      <button id="viewToggle" aria-pressed="false" aria-controls="handwritingPane">阅读模式</button>
+      <div class="workspace-modes" role="group" aria-label="学习视图">
+        <button id="viewToggle" aria-pressed="true" aria-controls="handwritingPane">并排</button>
+        <button id="readView" aria-pressed="false" aria-controls="readingPane">阅读</button>
+        <button id="writeView" aria-pressed="false" aria-controls="handwritingPane">手写</button>
+      </div>
       <button data-open="settingsModal">设置</button>
     </div>
   </header>
 
-  <main class="layout">
-    <section class="panel left" aria-labelledby="transcriptTitle">
+  <main class="layout" data-workspace="split">
+    <section class="panel left" id="readingPane" aria-labelledby="transcriptTitle">
       <header class="panel-header">
-        <h2 id="transcriptTitle">英文原文</h2>
+        <div class="panel-title"><h2 id="transcriptTitle">英文原文</h2><span id="studyProgress" class="progress-chip" role="status"></span></div>
         <div class="row">
           <button class="quiet" id="showAll">全部显示</button>
           <button class="quiet" data-open="readingTools" aria-label="原文工具">原文工具</button>
@@ -246,11 +227,9 @@ body:has(.modal.open) { overflow: hidden; }
       </header>
       <div class="transcript-stage" id="transcriptStage">
         <div class="content" tabindex="0" aria-label="原文滚动区域">
-          <p class="hint">点选单词，或长按拖选短语。<button class="quiet" id="modeBtn" aria-pressed="false">选择：单词</button></p>
           <div class="lesson-bar">
-            <button class="quiet" id="importAudioBtn">导入音频（M4A）</button>
-            <button class="quiet" id="trimAudioBtn" hidden>跳过片头与片尾</button>
-            <span id="studyProgress" class="status" role="status"></span>
+            <button class="quiet" id="modeBtn" aria-pressed="false">选择：单词</button>
+            <p class="hint">点选单词，或长按拖选短语。</p>
           </div>
           <p id="lessonStatus" class="hint" role="status"></p>
           <div id="paragraphs"></div>
@@ -278,7 +257,6 @@ body:has(.modal.open) { overflow: hidden; }
           <button class="quiet" data-open="phraseTools" aria-label="更多释义操作">更多</button>
         </div>
       </section>
-      <div id="readingAudioDock" aria-label="阅读模式音频播放区"></div>
     </section>
 
     <section class="panel" id="handwritingPane" aria-labelledby="handwritingTitle">
@@ -291,25 +269,40 @@ body:has(.modal.open) { overflow: hidden; }
         <button id="eraserBtn" aria-pressed="false">橡皮</button>
         <button class="quiet" id="undoBtn">撤销</button>
         <div class="palette" aria-label="笔迹颜色">
-          <button class="color" style="--ink:#1d2939" data-color="#1d2939" aria-label="黑色" aria-pressed="true"></button>
-          <button class="color" style="--ink:#2456c8" data-color="#2456c8" aria-label="蓝色" aria-pressed="false"></button>
-          <button class="color" style="--ink:#dd6b20" data-color="#dd6b20" aria-label="橙色" aria-pressed="false"></button>
-          <button class="color" style="--ink:#17834b" data-color="#17834b" aria-label="绿色" aria-pressed="false"></button>
+          <button class="color" style="--ink-color:#1d2939" data-color="#1d2939" aria-label="黑色" aria-pressed="true"></button>
+          <button class="color" style="--ink-color:#2456c8" data-color="#2456c8" aria-label="蓝色" aria-pressed="false"></button>
+          <button class="color" style="--ink-color:#dd6b20" data-color="#dd6b20" aria-label="橙色" aria-pressed="false"></button>
+          <button class="color" style="--ink-color:#17834b" data-color="#17834b" aria-label="绿色" aria-pressed="false"></button>
         </div>
       </div>
       <div class="writearea"><div class="paper" id="paper"><canvas id="ink" aria-label="手写画布"></canvas></div></div>
-      <div class="player">
-        <audio id="audio" preload="metadata" controls aria-label="听写音频"></audio>
-        <div class="row player-actions">
-          <input class="visually-hidden" type="file" id="audioFile" accept=".m4a,.mp3,.wav,.aac,.mp4,audio/*,audio/mp4">
-          <label class="button quiet" for="audioFile">导入音频</label>
-          <button class="quiet" id="back" aria-label="后退 5 秒">−5 秒</button>
-          <button class="quiet" data-open="audioTools">播放设置</button>
-        </div>
-      </div>
       <div class="paper-status" id="studyInfo" role="status">笔迹自动保存在本机</div>
     </section>
   </main>
+
+  <footer class="audio-dock" aria-label="听写播放器">
+    <div class="audio-dock-inner">
+      <div class="player">
+        <audio id="audio" preload="metadata" hidden></audio>
+        <input hidden type="file" id="audioFile" accept=".m4a,.mp3,.wav,.aac,.mp4,audio/*,audio/mp4">
+        <div class="row player-controls">
+          <button id="audioPlay" class="play-button" aria-label="播放音频">▶ 播放</button>
+          <button id="back" aria-label="后退 5 秒" disabled>−5 秒</button>
+        </div>
+        <div class="player-track">
+          <strong id="playerTitle">未导入音频</strong>
+          <output id="playerCurrent" for="playerSeek">0:00</output>
+          <input id="playerSeek" type="range" min="0" max="0" step="0.1" value="0" aria-label="音频进度" disabled>
+          <output id="playerDuration" for="playerSeek">0:00</output>
+        </div>
+        <div class="row player-actions">
+          <button id="importAudioBtn">导入音频</button>
+          <select id="speed" aria-label="播放速度"><option value=".75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select>
+          <button data-open="audioTools" aria-label="播放设置">播放设置</button>
+        </div>
+      </div>
+    </div>
+  </footer>
 
   <div class="modal" id="settingsModal"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
     <h2 id="settingsTitle">设置</h2>
@@ -353,7 +346,7 @@ body:has(.modal.open) { overflow: hidden; }
   <div class="modal" id="audioTools"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="audioToolsTitle">
     <h2 id="audioToolsTitle">播放设置</h2>
     <label class="field"><input type="checkbox" id="episodeOnePreset" checked> 第一集第 1 段预设（00:14–00:29）</label>
-    <label class="field">速度 <select id="speed"><option>.75</option><option selected>1</option><option>1.25</option><option>1.5</option></select></label>
+    <button class="quiet" id="trimAudioBtn" hidden>跳过片头与片尾</button>
     <p class="help">在播放位置设置 A 点和 B 点，即可循环听这一段。</p>
     <div class="row">
       <button id="setA">设 A 点</button>
@@ -735,21 +728,33 @@ function render(){
    scheduleSave();
   };
   const play=document.createElement('button');
-  play.textContent='▶ 播放本段';play.dataset.segmentPlay=String(i);
+  play.textContent='▶ 播放本段';play.className='segment-play';play.dataset.segmentPlay=String(i);
   play.setAttribute('aria-label','播放第 '+(i+1)+' 段');
   play.onclick=()=>playSegment(i);
   const range=getSegmentRange(i);
-  toolbar.append(mark,play);
+  toolbar.append(play,mark);
+  const options=document.createElement('button');
+  options.textContent='···';options.className='quiet segment-options';
+  options.setAttribute('aria-label','第 '+(i+1)+' 段的更多操作');
+  options.setAttribute('aria-expanded','false');
+  options.setAttribute('aria-controls','segment-options-'+i);
+  const optionList=document.createElement('div');
+  optionList.className='segment-option-list';optionList.id='segment-options-'+i;optionList.hidden=true;
+  options.onclick=()=>{
+   optionList.hidden=!optionList.hidden;
+   options.setAttribute('aria-expanded',String(!optionList.hidden));
+  };
+  toolbar.append(options);
   if(Number.isFinite(audioDuration)){
    const calibrate=document.createElement('button');
    calibrate.textContent='校准';
    calibrate.setAttribute('aria-label','校准第 '+(i+1)+' 段音频时间');
    calibrate.onclick=()=>editSegmentTime(i);
-   toolbar.append(calibrate);
+   optionList.append(calibrate);
   }
   const btn=document.createElement('button');btn.textContent=hidden.has(i)?'显示原文':'隐藏原文';
   btn.onclick=()=>{hidden.has(i)?hidden.delete(i):hidden.add(i);render()};
-  toolbar.append(btn);head.append(name,toolbar);el.append(head);
+  optionList.append(btn);head.append(name,toolbar);el.append(head,optionList);
   const body=document.createElement('div');body.className='body';
   if(hidden.has(i)){body.classList.add('hiddenText');body.textContent='原文已隐藏 · 先听写再揭晓'}
   else {
@@ -788,7 +793,7 @@ function render(){
    merge.textContent='合并下一段';
    merge.setAttribute('aria-label','合并第 '+(i+1)+'、'+(i+2)+' 段');
    merge.onclick=()=>mergeNextSegment(i);
-   foot.append(merge);
+   optionList.append(merge);
   }
   if(foot.childElementCount)el.append(foot);
   host.append(el);
@@ -1022,7 +1027,7 @@ function renderOnlineAnswer(answer){
 }
 
 async function explain(){const text=currentEnglish();if(!text){showResult('','请先选中英文。');return}const revision=showResult(text,'正在解释…');if(engine){try{let r=await engine.chat.completions.create({messages:[{role:'system',content:'你是设计英语教师。用简体中文简洁解释所给英文词、词组或句子：中文含义、语境、发音或语法提示，以及一个设计或艺术相关的原创英语例句。不要声称来自纪录片原文。'},{role:'user',content:text}],temperature:0.2,max_tokens:280});if(revision===resultRevision)$('aiOutput').textContent=r.choices[0].message.content||'模型没有返回内容';return}catch{if(revision!==resultRevision)return}}let meaning=dictionary[text.toLowerCase().replace(/[^a-z'-]/g,'')];$('aiOutput').textContent=meaning?`${text}：${meaning}\n\n离线基础词库解释；加载本地 AI 后可查看语境和句法。`:`「${text}」不在内置基础词库。点击「更多 → 复制到 Noema」，在已安装的 Qwen3 1.7B 中离线解释短语或整句。`}
-const pageRegions=document.querySelectorAll('body > header, body > main');
+const pageRegions=document.querySelectorAll('body > header, body > main, body > footer');
 let activeModal=null;
 let modalTrigger=null;
 
@@ -1095,6 +1100,7 @@ $('doImport').onclick=()=>{
 
 const audio=$('audio');
 const audioFile=$('audioFile');
+let currentAudioName='';
 let audioURL=null,a=null,b=null,loop=false,activeSegment=null,stopTimer=null;
 let timingIndex=null;
 const reportLesson=text=>{$('lessonStatus').textContent=text};
@@ -1104,12 +1110,50 @@ function syncSegmentPlayback(){
   const active=activeSegment?.index===Number(button.dataset.segmentPlay)&&!audio.paused;
   button.textContent=active?'暂停本段':'▶ 播放本段';
   button.setAttribute('aria-label',(active?'暂停':'播放')+'第 '+(Number(button.dataset.segmentPlay)+1)+' 段');
+  button.closest('.para').dataset.active=String(activeSegment?.index===Number(button.dataset.segmentPlay));
  });
 }
+
+function dockTime(seconds){
+ if(!Number.isFinite(seconds))return '0:00';
+ const whole=Math.floor(seconds);
+ return Math.floor(whole/60)+':'+String(whole%60).padStart(2,'0');
+}
+
+function syncPlayer(){
+ const ready=Number.isFinite(audioDuration)&&audioDuration>0;
+ const seek=$('playerSeek');
+ seek.disabled=!ready;
+ seek.max=ready?String(audioDuration):'0';
+ seek.value=ready?String(audio.currentTime):'0';
+ $('back').disabled=!ready;
+ $('playerCurrent').textContent=dockTime(audio.currentTime);
+ $('playerDuration').textContent=dockTime(audioDuration);
+ $('playerTitle').textContent=activeSegment?'第 '+(activeSegment.index+1)+' 段':currentAudioName||'未导入音频';
+ const button=$('audioPlay');
+ button.textContent=audio.paused?'▶ 播放':'Ⅱ 暂停';
+ button.setAttribute('aria-label',audio.paused?'播放音频':'暂停音频');
+}
+
+$('audioPlay').onclick=async()=>{
+ if(!audioURL){audioFile.click();return}
+ if(!audio.paused){audio.pause();return}
+ try{await audio.play()}catch{reportLesson('无法播放音频，请重新导入后再试。')}
+};
+
+$('playerSeek').oninput=()=>{
+ if(!Number.isFinite(audioDuration))return;
+ const next=Number($('playerSeek').value);
+ if(activeSegment&&(next<activeSegment.start||next>=activeSegment.end))stopSegment();
+ audio.currentTime=next;
+ syncPlayer();
+};
+$('playerSeek').addEventListener('blur',syncPlayer);
 
 function refreshAudioRanges(){
  const ready=Number.isFinite(audioDuration)&&audioDuration>0;
  $('trimAudioBtn').hidden=!ready;
+ syncPlayer();
  keptWindows=ready?trimWindows(audioTrim,audioDuration):[];
  const manual=audioFileKey===savedAudioKey?adjustments:[];
  const anchors=ready?withEpisodeOnePreset(segments,manual,keptWindows,episodeOnePreset):[];
@@ -1126,6 +1170,7 @@ function stopSegment(){
  clearTimeout(stopTimer);
  activeSegment=null;
  syncSegmentPlayback();
+ syncPlayer();
 }
 
 function rawAudioPreview(){
@@ -1309,6 +1354,7 @@ audioFile.onchange=event=>{
  stopSegment();
  audio.pause();
  if(audioURL)URL.revokeObjectURL(audioURL);
+ currentAudioName=file.name;
  audioFileKey=[file.name,file.size,file.lastModified].join(':');
  audioDuration=NaN;audioTrim=null;alignedRanges=[];
  audioURL=URL.createObjectURL(file);audio.src=audioURL;
@@ -1334,7 +1380,7 @@ audio.addEventListener('play',()=>{
  }
 });
 for(const event of ['play','pause','seeked','ratechange']){
- audio.addEventListener(event,()=>{enforcePlaybackBounds();syncSegmentPlayback();syncTimingPreview();syncTrimPreview()});
+ audio.addEventListener(event,()=>{enforcePlaybackBounds();syncSegmentPlayback();syncPlayer();syncTimingPreview();syncTrimPreview()});
 }
 audio.addEventListener('ended',stopSegment);
 $('episodeOnePreset').checked=episodeOnePreset;
@@ -1351,6 +1397,7 @@ $('setA').onclick=()=>{a=audio.currentTime;$('setA').textContent='A '+a.toFixed(
 $('setB').onclick=()=>{b=audio.currentTime;$('setB').textContent='B '+b.toFixed(1)};
 $('loop').onclick=()=>{loop=!loop;$('loop').textContent='循环：'+(loop?'开':'关')};
 audio.ontimeupdate=()=>{
+ syncPlayer();
  if(rawAudioPreview()){syncTimingPreview();syncTrimPreview();return}
  enforcePlaybackBounds();
 };
@@ -1385,26 +1432,36 @@ async function save(){try{db=db||await openDB();await new Promise((resolve,rejec
 function scheduleSave(){clearTimeout(saveTimer);saveTimer=setTimeout(save,700)}
 $('saveBtn').onclick=save;async function restore(){try{db=await openDB();let tx=db.transaction('notes');let req=tx.objectStore('notes').get('latest');req.onsuccess=()=>{if(req.result?.strokes&&!hasEditedInk){strokes=req.result.strokes;redraw()}}}catch{}}setTimeout(restore,300);document.addEventListener('visibilitychange',()=>{if(document.hidden){clearTimeout(saveTimer);void save()}});
 
-// Toggle handwriting without discarding strokes; keep the same audio element in reading mode.
-const viewToggle=$('viewToggle'), layout=document.querySelector('.layout');
-const audioPlayer=document.querySelector('#handwritingPane .player');
-const audioParent=audioPlayer.parentElement, audioNext=audioPlayer.nextSibling;
-function setReadingMode(reading){
- if(reading===layout.classList.contains('reading-mode'))return;
- if(reading){
-  $('readingAudioDock').append(audioPlayer);
- }else{
-  audioParent.insertBefore(audioPlayer,audioNext);
+// A single player stays mounted when switching study views.
+const layout=document.querySelector('.layout');
+const workspaceButtons={split:$('viewToggle'),reading:$('readView'),writing:$('writeView')};
+const compactWorkspace=window.matchMedia('(max-width: 899px)');
+let preferredWorkspace='split';
+try{
+ const saved=localStorage.getItem('dll_workspace_view');
+ preferredWorkspace=Object.prototype.hasOwnProperty.call(workspaceButtons,saved)?saved:
+  localStorage.getItem('dll_reading_mode')==='1'?'reading':'split';
+}catch{}
+
+function showWorkspace(){
+ const view=preferredWorkspace==='split'&&compactWorkspace.matches?'reading':preferredWorkspace;
+ layout.dataset.workspace=view;
+ for(const [key,button] of Object.entries(workspaceButtons)){
+  button.setAttribute('aria-pressed',String(view===key));
  }
- layout.classList.toggle('reading-mode',reading);
- if(!reading&&typeof ResizeObserver!=='function')resize();
- viewToggle.setAttribute('aria-pressed',String(reading));
- viewToggle.textContent=reading?'返回听写':'阅读模式';
- // Canvas resize is observed and normalized strokes remain available on reopening.
- try{localStorage.setItem('dll_reading_mode',reading?'1':'0')}catch{}
+ if(view!=='reading'&&typeof ResizeObserver!=='function')resize();
 }
-viewToggle.addEventListener('click',()=>setReadingMode(!layout.classList.contains('reading-mode')));
-try{if(localStorage.getItem('dll_reading_mode')==='1')setReadingMode(true)}catch{}
+
+for(const [view,button] of Object.entries(workspaceButtons)){
+ button.onclick=()=>{
+  preferredWorkspace=view;
+  showWorkspace();
+  try{localStorage.setItem('dll_workspace_view',view)}catch{}
+ };
+}
+if(compactWorkspace.addEventListener)compactWorkspace.addEventListener('change',showWorkspace);
+else compactWorkspace.addListener(showWorkspace);
+showWorkspace();
 
 async function checkGPU(){let ok=!!navigator.gpu;$('gpuStatus').textContent=ok?'检测到 WebGPU 接口（尚需实际模型验证）':'未检测到 WebGPU：此浏览器无法运行当前本地模型方案';$('modelInfo').textContent='3.1 诊断版：分阶段检测运行组件、模型下载与 GPU 初始化。首次安装需联网。';$('installAI').disabled=!ok}
 function aiReport(stage,message){$('aiStatus').textContent='【'+stage+'】 '+message;console.info('[ListeningLab AI]',stage,message)}
@@ -1451,7 +1508,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v4.11');
+   const cache=await caches.open('design-listening-lab-v5.0');
    const core=['./index.html','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
