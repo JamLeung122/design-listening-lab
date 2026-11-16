@@ -1,30 +1,64 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#fcfcf8">
+  <meta name="theme-color" content="#182320">
+  <script>
+    try {
+      if (localStorage.getItem('dll_theme') === 'light') {
+        document.documentElement.dataset.theme = 'light';
+        document.querySelector('meta[name="theme-color"]').content = '#fcfcf8';
+      }
+    } catch {}
+  </script>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Design Listening Lab</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
-  <meta name="listening-lab-release" content="5.0">
+  <meta name="listening-lab-release" content="5.1">
   <!-- Keep layout with the HTML so Safari can render it even when asset caches disagree. -->
   <style>
 :root {
-  color-scheme: light;
+  color-scheme: dark;
   font-family: Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif;
-  background: #eeeee8;
-  color: #202d2b;
+  background: var(--page);
+  color: var(--ink);
+  --page: #101917;
+  --surface: #182320;
+  --raised: #24312c;
+  --card: #1c2824;
+  --field: #14201c;
+  --line: #394943;
+  --muted: #b4c1b8;
+  --accent: #a9dfc6;
+  --accent-soft: #29483c;
+  --accent-ink: #122d23;
+  --accent-line: #72988a;
+  --focus: #9ddcc1;
+  --active: #80b49f;
+  --danger: #f2b0a4;
+  --ink: #edf3ee;
+  --scrim: #050b09bd;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
   --page: #eeeee8;
   --surface: #fcfcf8;
   --raised: #f2f3ed;
+  --card: #fff;
+  --field: #fff;
   --line: #d8ddd3;
   --muted: #545e57;
   --accent: #14554b;
   --accent-soft: #e0ede7;
+  --accent-ink: #fff;
+  --accent-line: #a8c7ba;
+  --focus: #166e62;
+  --active: #508979;
+  --danger: #9b3a26;
   --ink: #202d2b;
-  --radius: 15px;
+  --scrim: #1b2a23a6;
 }
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -39,10 +73,10 @@ button, select, summary.button, label.button {
 button, summary.button, label.button { cursor: pointer; touch-action: manipulation; }
 button:disabled, input:disabled { opacity: .55; }
 button.quiet, summary.button { background: transparent; }
-button.primary { color: #fff; background: var(--accent); border-color: var(--accent); }
-button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: #a8c7ba; }
-:focus-visible { outline: 2px solid #166e62; outline-offset: 2px; }
-@media (hover: hover) { button:hover:not(:disabled), summary:hover, label.button:hover { border-color: #76978c; } }
+button.primary { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent-line); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@media (hover: hover) { button:hover:not(:disabled), summary:hover, label.button:hover { border-color: var(--accent-line); } }
 h1,h2,h3,p { margin: 0; }
 a { color: var(--accent); }
 .top, .layout, .audio-dock-inner { padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
@@ -93,9 +127,9 @@ h1 { font-size: clamp(1.125rem, 2.15vw, 1.55rem); letter-spacing: -.035em; line-
 .lesson-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; margin-bottom: 8px; }
 .lesson-bar .hint { flex: 1 1 148px; }
 #lessonStatus { margin-bottom: 8px; overflow-wrap: anywhere; }
-.para { max-width: 69ch; margin-inline: auto; position: relative; padding: 10px 13px 12px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
+.para { max-width: 69ch; margin-inline: auto; position: relative; padding: 10px 13px 12px; border: 1px solid var(--line); border-radius: 11px; background: var(--card); }
 .para + .para { margin-top: 8px; }
-.para[data-active="true"] { border-color: #629587; box-shadow: inset 3px 0 #2b7768; }
+.para[data-active="true"] { border-color: var(--active); box-shadow: inset 3px 0 var(--active); }
 .para .meta { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 4px; margin-bottom: 5px; }
 .segment-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .segment-toolbar button { padding-inline: 8px; }
@@ -114,7 +148,7 @@ h1 { font-size: clamp(1.125rem, 2.15vw, 1.55rem); letter-spacing: -.035em; line-
 .para .hiddenText { font-size: .875rem; color: var(--muted); }
 .word { border-radius: 3px; cursor: pointer; }
 @media (hover: hover) { .word:hover { background: var(--accent-soft); } }
-.sentence-mode .sentence { cursor: pointer; border-bottom: 1px dotted #358975; }
+.sentence-mode .sentence { cursor: pointer; border-bottom: 1px dotted var(--active); }
 #paragraphs ::selection { background: #b9e2d1; color: #132d27; }
 .note { flex: none; border-top: 1px solid var(--line); padding: 9px 14px; background: var(--raised); }
 .note-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 6px; }
@@ -132,12 +166,12 @@ h1 { font-size: clamp(1.125rem, 2.15vw, 1.55rem); letter-spacing: -.035em; line-
 .palette { display: inline-flex; flex-wrap: wrap; gap: 2px; }
 button.color { width: 44px; padding: 0; display: grid; place-items: center; background: transparent; }
 button.color::before { content: ""; border-radius: 50%; width: 17px; height: 17px; background: var(--ink-color); }
-button.color[aria-pressed="true"] { background: var(--accent-soft); border-color: #669487; }
+button.color[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--active); }
 .writearea { flex: 1; min-height: 0; display: flex; padding-inline: 10px; }
 .paper { flex: 1; min-width: 0; position: relative; overflow: hidden; border-radius: 8px; background: #f8f9f4; border: 1px solid var(--line); touch-action: none; }
 .paper canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 .paper-status { flex: none; padding: 7px 12px; overflow-wrap: anywhere; }
-.audio-dock { flex: none; background: #173b33; color: #f4f8f2; border-top: 1px solid #2e5a50; }
+.audio-dock { color-scheme: dark; flex: none; background: #173b33; color: #f4f8f2; border-top: 1px solid #2e5a50; }
 .audio-dock-inner { max-width: 1440px; margin-inline: auto; padding-top: 8px; padding-bottom: max(8px, env(safe-area-inset-bottom, 0px)); }
 .player { display: grid; grid-template-columns: auto minmax(130px,1fr) auto; align-items: center; gap: 8px 14px; }
 .audio-dock button, .audio-dock select { background: #285247; border-color: #517569; color: #f4f8f2; }
@@ -152,24 +186,24 @@ button.color[aria-pressed="true"] { background: var(--accent-soft); border-color
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .modal {
   position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center;
-  background: #1b2a23a6;
+  background: var(--scrim);
   padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
 }
 .modal.open { display: flex; }
-.dialog { width: min(100%, 530px); max-height: 100%; overflow: auto; overscroll-behavior: contain; padding: 17px; background: var(--surface); border: 1px solid #aebdb1; border-radius: var(--radius); box-shadow: 0 18px 65px #14281f42; }
+.dialog { width: min(100%, 530px); max-height: 100%; overflow: auto; overscroll-behavior: contain; padding: 17px; background: var(--surface); border: 1px solid var(--accent-line); border-radius: var(--radius); box-shadow: 0 18px 65px #14281f42; }
 .dialog h2 { font-size: 1.22rem; letter-spacing: -.02em; }
 .dialog > * + * { margin-top: 11px; }
 .dialog label.help { display: block; }
 .dialog input:is([type="password"],[type="url"]), .dialog textarea, .timing-fields input {
   display: block; width: 100%; min-height: 44px; padding: 8px; border: 1px solid var(--line); border-radius: 8px;
-  color: var(--ink); background: white; font-size: 16px;
+  color: var(--ink); background: var(--field); font-size: 16px;
 }
 .dialog input[type="file"] { max-width: 100%; }
 .field { display: flex; align-items: center; gap: 10px; }
 .field select { font-size: 16px; }
 .menu-actions { display: grid; gap: 6px; }
 .menu-actions button { text-align: left; }
-button.danger { color: #9b3a26; }
+button.danger { color: var(--danger); }
 .timing-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 8px; }
 .time-field { display: grid; gap: 4px; color: var(--muted); font-size: .875rem; }
 #sourceText { min-height: 125px; }
@@ -306,6 +340,7 @@ button.danger { color: #9b3a26; }
 
   <div class="modal" id="settingsModal"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
     <h2 id="settingsTitle">设置</h2>
+    <label class="field" for="themeMode">外观 <select id="themeMode"><option value="dark" selected>深色</option><option value="light">浅色</option></select></label>
     <div class="menu-actions">
       <button id="onlineSettingsBtn">在线 AI 设置</button>
       <button id="importBtn">导入英文原文</button>
@@ -391,7 +426,7 @@ button.danger { color: #9b3a26; }
   </div>
 </div></div>
 <div class="modal" id="onlineSettingsModal"><div class="dialog"><h2>在线 AI · 安全连接</h2><p class="help">网页只保存你的代理服务地址。访问口令仅保存在当前打开的页面内存中，刷新后需要重新输入。不要在这里输入百炼或 OpenAI API Key：百炼或 OpenAI 的 API Key 必须存放在服务器密钥中。</p><label class="help" for="onlineEndpoint">Qwen AI 服务地址（Cloudflare Worker，以 /explain 结尾）</label><input id="onlineEndpoint" type="url" inputmode="url" placeholder="https://your-worker.workers.dev/explain" autocomplete="off"><label class="help" for="onlineToken">应用访问口令（不是百炼或 OpenAI API Key）</label><input id="onlineToken" type="password" placeholder="在 Worker 中设置的 APP_ACCESS_TOKEN" autocomplete="off"><div class="row" style="margin-top:12px"><button id="saveOnlineSettings" class="primary">保存当前连接</button><button id="testOnlineConnection">测试连接</button><button data-close="onlineSettingsModal">关闭</button></div><p id="onlineConfigStatus" class="help" role="status">未配置。离线功能保持可用。</p></div></div>
-<div class="modal" id="aiModal"><div class="dialog"><h2>本地 AI · 安装与状态</h2><p class="help">使用 WebLLM 在浏览器设备端推理。首次需要联网下载模型及运行组件；WebLLM 的远程运行组件可能无法离线重新初始化；请以飞行模式实测为准。不会自动上传你的听写或原文。你已在 Noema 安装的模型无法直接从 Safari 调用；建议使用「复制到 Noema」。</p><div id="gpuStatus" class="pill">检测中</div><p class="help">浏览器模型测试是可选功能。先选更小的 SmolLM2 360M（约 380MB），只用于验证下载与推理；英语解释质量可能不及 Noema 的 Qwen3 1.7B，且相同网络问题仍可能发生。</p><label class="help" for="modelChoice">浏览器模型 <select id="modelChoice"><option value="SmolLM2-360M-Instruct-q4f16_1-MLC" selected>SmolLM2 360M · 约380MB（测试优先）</option><option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen2.5 0.5B · 约950MB（原方案）</option></select></label><p id="modelInfo" class="help"></p><div class="row"><button class="primary" id="installAI">下载并加载所选模型</button><button id="testAI">测试离线解释</button><button data-close="aiModal">关闭</button></div><p id="aiStatus" class="help">尚未安装。</p><hr style="border:0;border-top:1px solid #394a63;margin:18px 0"><h3>网络与缓存诊断</h3><p class="help">检测模型配置与首个参数分片的 HTTP Range 响应，并检查浏览器缓存。分片总数随模型版本变化，诊断不会下载完整模型。</p><button id="diagBtn">检测模型连接与缓存</button><pre id="diagLog" aria-live="polite">尚未检测</pre><p class="help">如果卡在 0%，请截图诊断日志，不要反复下载。</p></div></div>
+<div class="modal" id="aiModal"><div class="dialog"><h2>本地 AI · 安装与状态</h2><p class="help">使用 WebLLM 在浏览器设备端推理。首次需要联网下载模型及运行组件；WebLLM 的远程运行组件可能无法离线重新初始化；请以飞行模式实测为准。不会自动上传你的听写或原文。你已在 Noema 安装的模型无法直接从 Safari 调用；建议使用「复制到 Noema」。</p><div id="gpuStatus" class="pill">检测中</div><p class="help">浏览器模型测试是可选功能。先选更小的 SmolLM2 360M（约 380MB），只用于验证下载与推理；英语解释质量可能不及 Noema 的 Qwen3 1.7B，且相同网络问题仍可能发生。</p><label class="help" for="modelChoice">浏览器模型 <select id="modelChoice"><option value="SmolLM2-360M-Instruct-q4f16_1-MLC" selected>SmolLM2 360M · 约380MB（测试优先）</option><option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen2.5 0.5B · 约950MB（原方案）</option></select></label><p id="modelInfo" class="help"></p><div class="row"><button class="primary" id="installAI">下载并加载所选模型</button><button id="testAI">测试离线解释</button><button data-close="aiModal">关闭</button></div><p id="aiStatus" class="help">尚未安装。</p><hr style="border:0;border-top:1px solid var(--line);margin:18px 0"><h3>网络与缓存诊断</h3><p class="help">检测模型配置与首个参数分片的 HTTP Range 响应，并检查浏览器缓存。分片总数随模型版本变化，诊断不会下载完整模型。</p><button id="diagBtn">检测模型连接与缓存</button><pre id="diagLog" aria-live="polite">尚未检测</pre><p class="help">如果卡在 0%，请截图诊断日志，不要反复下载。</p></div></div>
 <noscript><p>此页面需要启用 Safari 的 JavaScript 才能选词、听写和保存笔迹。</p></noscript>
 <!-- Core controls ship with the HTML to keep offline updates atomic. -->
 <script id="listening-lab-app">
@@ -399,6 +434,15 @@ button.danger { color: #9b3a26; }
 'use strict';
 try{
 const $=id=>document.getElementById(id);
+
+const themeControl=$('themeMode');
+themeControl.value=document.documentElement.dataset.theme;
+themeControl.onchange=()=>{
+ const theme=themeControl.value==='light'?'light':'dark';
+ document.documentElement.dataset.theme=theme;
+ document.querySelector('meta[name="theme-color"]').content=theme==='light'?'#fcfcf8':'#182320';
+ try{localStorage.setItem('dll_theme',theme)}catch{}
+};
 
 function readStoredArray(key, isValid){
  try{
@@ -1508,7 +1552,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v5.0');
+   const cache=await caches.open('design-listening-lab-v5.1');
    const core=['./index.html','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
