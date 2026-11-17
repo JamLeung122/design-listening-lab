@@ -15,8 +15,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Design Listening Lab</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="listening-lab-release" content="5.1">
+  <link rel="manifest" href="/design-listening-lab/manifest.webmanifest">
+  <link rel="canonical" href="https://jamleung122.github.io/design-listening-lab/">
+  <meta name="listening-lab-release" content="5.2">
   <!-- Keep layout with the HTML so Safari can render it even when asset caches disagree. -->
   <style>
 :root {
@@ -255,6 +256,7 @@ button.danger { color: var(--danger); }
       <header class="panel-header">
         <div class="panel-title"><h2 id="transcriptTitle">英文原文</h2><span id="studyProgress" class="progress-chip" role="status"></span></div>
         <div class="row">
+          <button class="quiet" id="reopenResult" aria-controls="resultPanel" aria-expanded="false" disabled>展开释义</button>
           <button class="quiet" id="showAll">全部显示</button>
           <button class="quiet" data-open="readingTools" aria-label="原文工具">原文工具</button>
         </div>
@@ -287,7 +289,6 @@ button.danger { color: var(--danger); }
         <div class="row note-actions">
           <button class="primary" id="onlineExplainBtn">在线 AI 解释</button>
           <button id="explainBtn">基础释义</button>
-          <button class="quiet" id="reopenResult" aria-controls="resultPanel" aria-expanded="false" hidden>查看释义</button>
           <button class="quiet" data-open="phraseTools" aria-label="更多释义操作">更多</button>
         </div>
       </section>
@@ -939,17 +940,19 @@ $('copyNoema').onclick=()=>copyForNoema(true);
 function toggleResult(open){
  $('resultPanel').hidden=!open;
  $('transcriptStage').dataset.showingResult=String(open);
- $('reopenResult').hidden=open;
- $('reopenResult').setAttribute('aria-expanded',String(open));
- if(open)$('resultPanel').scrollIntoView({block:'nearest'});
+ const toggle=$('reopenResult');
+ toggle.textContent=open?'收起释义':'展开释义';
+ toggle.setAttribute('aria-expanded',String(open));
+ toggle.disabled=!hasResult;
 }
 
-let resultRevision=0;
+let resultRevision=0,hasResult=false;
 function showResult(text,message){
  $('resultSelection').textContent=text;
  const output=$('aiOutput');
  output.textContent=message;
  output.scrollTop=0;
+ hasResult=true;
  toggleResult(true);
  return ++resultRevision;
 }
@@ -958,8 +961,7 @@ $('collapseResult').onclick=()=>{
  $('reopenResult').focus({preventScroll:true});
 };
 $('reopenResult').onclick=()=>{
- toggleResult(true);
- $('collapseResult').focus({preventScroll:true});
+ if(hasResult)toggleResult($('resultPanel').hidden);
 };
 
 // Online AI is optional and only sends explicitly selected English text when tapped.
@@ -1136,7 +1138,7 @@ $('doImport').onclick=()=>{
   stopSegment();audio.pause();
  }
  hidden.clear();selection='';$('selected').textContent='请先选择英文';
- resultRevision++;toggleResult(false);$('reopenResult').hidden=true;
+ resultRevision++;hasResult=false;toggleResult(false);
  refreshAudioRanges();render();scheduleSave();closeModal('importModal');
  if(!saveLesson())$('lessonStatus').textContent='原文已在当前页分段，可在笔记工具中备份。';
  else if(merged.count)reportLesson('已合并 '+merged.count+' 处相邻短段。');
@@ -1552,7 +1554,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v5.1');
+   const cache=await caches.open('design-listening-lab-v5.2');
    const core=['./index.html','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
