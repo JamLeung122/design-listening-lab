@@ -17,7 +17,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="manifest" href="/design-listening-lab/manifest.webmanifest">
   <link rel="canonical" href="https://jamleung122.github.io/design-listening-lab/">
-  <meta name="listening-lab-release" content="5.2">
+  <meta name="listening-lab-release" content="5.3">
   <!-- Keep layout with the HTML so Safari can render it even when asset caches disagree. -->
   <style>
 :root {
@@ -238,7 +238,7 @@ button.danger { color: var(--danger); }
   <header class="top">
     <div class="identity">
       <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <div><h1>Design Listening Lab</h1><p>Abstract · 第一集 · Christoph Niemann</p></div>
+      <div><h1>Design Listening Lab</h1><p>Abstract · 第一集 · Christoph Niemann · V5.3</p></div>
     </div>
     <div class="top-actions">
       <span id="network" class="status">检测网络…</span>
@@ -288,6 +288,7 @@ button.danger { color: var(--danger); }
         </div>
         <div class="row note-actions">
           <button class="primary" id="onlineExplainBtn">在线 AI 解释</button>
+          <button id="cachedAiBtn" disabled>上次 AI 释义</button>
           <button id="explainBtn">基础释义</button>
           <button class="quiet" data-open="phraseTools" aria-label="更多释义操作">更多</button>
         </div>
@@ -1021,11 +1022,39 @@ $('saveOnlineSettings').onclick=()=>{
  try{localStorage.setItem('dll_online_endpoint',onlineEndpoint)}catch{}
  $('onlineConfigStatus').textContent='连接设置已保存在当前页面。现在选择英文并点击「在线 AI 解释」。';
 };
+// Local-only successful answer cache. Never store provider or application credentials here.
+const AI_CACHE_KEY='dll_ai_answers_v1';
+let aiAnswers=[];
+try {
+ const raw=JSON.parse(localStorage.getItem(AI_CACHE_KEY)||'[]');
+ if(Array.isArray(raw))aiAnswers=raw.filter(x=>x&&typeof x.text==='string'&&typeof x.answer==='string'&&x.text.length<=1200&&x.answer.length<=16000).slice(0,100);
+}catch{}
+const normalizeAiText=text=>text.replace(/\s+/g,' ').trim();
+function rememberAiAnswer(text,answer){
+ const key=normalizeAiText(text);
+ if(!key||!answer.trim()||answer.length>16000)return;
+ aiAnswers=[{text:key,answer},...aiAnswers.filter(x=>x.text!==key)].slice(0,100);
+ $('cachedAiBtn').disabled=false;
+ try{localStorage.setItem(AI_CACHE_KEY,JSON.stringify(aiAnswers))}catch{}
+}
+function showCachedAi(entry){
+ if(!entry)return;
+ showResult(entry.text,'');
+ renderOnlineAnswer(entry.answer);
+}
+$('cachedAiBtn').disabled=!aiAnswers.length;
+$('cachedAiBtn').onclick=()=>showCachedAi(aiAnswers[0]);
+if(aiAnswers.length){
+ showCachedAi(aiAnswers[0]);
+ toggleResult(false);
+}
 let onlineExplaining=false;
 $('onlineExplainBtn').onclick=async()=>{
  if(onlineExplaining)return;
- const text=(selectedTranscriptText()||selection).trim();
- if(!text){showResult('','请先选中一个英文单词、短语或句子。');return}
+ const text=normalizeAiText(selectedTranscriptText()||selection);
+ const cached=aiAnswers.find(x=>x.text===text);
+ if(cached){rememberAiAnswer(cached.text,cached.answer);showCachedAi(cached);return}
+ if(!text){if(aiAnswers.length)showCachedAi(aiAnswers[0]);else showResult('','请先选中一个英文单词、短语或句子。');return}
  if(text.length>1200){showResult(text,'一次最多解释 1200 个字符，请缩短选区。');return}
  if(!navigator.onLine){showResult(text,'当前离线。可以使用基础释义，或在「更多」中复制到 Noema。');return}
  if(!onlineEndpoint||!onlineAccessToken){
@@ -1049,7 +1078,8 @@ $('onlineExplainBtn').onclick=async()=>{
    const detail=data.error==='AI request timed out'?'已连到释义服务器，但百炼回复超时。':data.error||'HTTP '+response.status;
    throw Error(detail);
   }
-  if(typeof data.answer!=='string')throw Error('响应中缺少解释文字');
+  if(typeof data.answer!=='string'||!data.answer.trim())throw Error('响应中缺少解释文字');
+  rememberAiAnswer(text,data.answer);
   if(revision===resultRevision)renderOnlineAnswer(data.answer);
  }catch(e){
   if(revision===resultRevision)$('aiOutput').textContent=controller.signal.aborted||e.name==='TypeError'
@@ -1554,7 +1584,7 @@ $('testAI').onclick=async()=>{if(!engine){$('aiStatus').textContent='请先加�
  let ready=false;
  try{
   if('caches'in window){
-   const cache=await caches.open('design-listening-lab-v5.2');
+   const cache=await caches.open('design-listening-lab-v5.3');
    const core=['./index.html','./manifest.webmanifest','./icon.svg'];
    ready=(await Promise.all(core.map(url=>cache.match(url)))).every(Boolean);
   }
